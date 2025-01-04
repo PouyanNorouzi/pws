@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include "pssh.h"
 
 /**
  * The command line interface for the application
