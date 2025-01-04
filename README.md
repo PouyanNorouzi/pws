@@ -31,7 +31,3 @@ After building the project, you can run the executable:
 - `Makefile`: Instructions for building the project.
 - `.vscode/`: Configuration files for Visual Studio Code.
 - `.gitignore`: Specifies files and directories to be ignored by Git.
-
-## License
-
-This project is licensed under the MIT License.
