@@ -67,6 +67,9 @@ int main(void)
             {
                 puts("terminal session went ok");
             }
+        } else if(strcmp(buffer, "2") == 0)
+        {
+            easy_navigate_mode(session);
         }
     } while(strcmp(buffer, "quit") != 0 && strcmp(buffer, "0") != 0);
 

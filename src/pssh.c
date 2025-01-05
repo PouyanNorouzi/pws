@@ -182,11 +182,13 @@ int request_interactive_shell(ssh_channel channel)
     int rc = ssh_channel_request_pty(channel);
     if(rc != SSH_OK) return rc;
 
-    // rc = ssh_channel_change_pty_size(channel, 80, 24);
-    // if(rc != SSH_OK) return rc;
+    rc = ssh_channel_change_pty_size(channel, 80, 24);
+    if(rc != SSH_OK) return rc;
 
     rc = ssh_channel_request_shell(channel);
     if(rc != SSH_OK) return rc;
+
+    return rc;
 }
 
 /**
@@ -196,6 +198,7 @@ void print_home_menu(void)
 {
     puts("You are at home menu type in the number of the action you want to do (0 or quit to quit)");
     puts("1. open new terminal session");
+    puts("2. easy navigate mode");
 }
 
 int terminal_session(ssh_session session)
@@ -244,6 +247,40 @@ int terminal_session(ssh_session session)
     ssh_channel_close(channel);
     ssh_channel_free(channel);
     return 0;
+}
+
+int easy_navigate_mode(ssh_session session)
+{
+    ssh_channel channel = create_channel_with_open_session(session);
+    if(channel == NULL)
+    {
+        fprintf(stderr, "Failed to open channel for the terminal %s\n", ssh_get_error(session));
+        return SSH_ERROR;
+    }
+
+    if(ssh_channel_request_exec(channel, "ps aux") != SSH_OK)
+    {
+        fprintf(stderr, "Failed to execute command %s\n", ssh_get_error(session));
+        ssh_channel_close(channel);
+        ssh_channel_free(channel);
+        return SSH_ERROR;
+    }
+
+    size_t nbytes;
+    char buffer[BUFFER_SIZE];
+    while((nbytes = ssh_channel_read(channel, buffer, sizeof(buffer), 0)) > 0)
+    {
+        if(fwrite(buffer, sizeof(char), nbytes, stdout) != nbytes)
+        {
+            ssh_channel_close(channel);
+            ssh_channel_free(channel);
+            return SSH_ERROR;
+        }
+    }
+
+    ssh_channel_close(channel);
+    ssh_channel_free(channel);
+    return SSH_OK;
 }
 
 char* pfgets(char* string, int size, FILE* fp)

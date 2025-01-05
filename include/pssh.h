@@ -16,9 +16,13 @@ ssh_channel create_channel_with_open_session(ssh_session session);
 
 int request_interactive_shell(ssh_channel channel);
 
+int execute_command(ssh_session session, char* command);
+
 void print_home_menu(void);
 
 int terminal_session(ssh_session session);
+
+int easy_navigate_mode(ssh_session session);
 
 char* pfgets(char* string, int size, FILE* fp);
 
