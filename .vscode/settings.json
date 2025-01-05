@@ -1,0 +1,6 @@
+{
+    "files.associations": {
+        "*.txt": "hoi4",
+        "stdio.h": "c"
+    }
+}

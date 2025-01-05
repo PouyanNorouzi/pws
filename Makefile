@@ -6,6 +6,8 @@ SRC_DIR = src
 EXE = $(BUILD_DIR)/main
 OBJECTS = $(BUILD_DIR)/main.o $(BUILD_DIR)/pssh.o
 
+include .env
+
 $(shell mkdir -p $(BUILD_DIR))
 
 $(EXE) : $(OBJECTS)
@@ -23,4 +25,4 @@ rm :
 			rm -rf $(BUILD_DIR)
 
 run: $(EXE)
-			./$(EXE)
+			HOST=$(HOST) ./$(EXE)

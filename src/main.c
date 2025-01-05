@@ -1,33 +1,76 @@
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <libssh/libssh.h>
 #include "pssh.h"
 
 /**
  * The command line interface for the application
  */
-int main(int argc, char const* argv[])
+int main(void)
 {
-   int verbosity = SSH_LOG_PROTOCOL;
-   int port = 22;
+    int verbosity = SSH_LOG_PROTOCOL;
+    char* user = "remoteuser";
+    char* host = getenv("HOST");
+    char buffer[BUFFER_SIZE];
 
-   ssh_session s = ssh_new();
+    ssh_session session = ssh_new();
+    if(session == NULL)
+    {
+        fprintf(stderr, "failed to create ssh session\n");
+        exit(-1);
+    }
 
-   ssh_options_set(s, SSH_OPTIONS_USER, "batmanpouknight");
-   ssh_options_set(s, SSH_OPTIONS_LOG_VERBOSITY, &verbosity);
-   ssh_options_set(s, SSH_OPTIONS_PORT, &port);
+    // get the host name from environment variable 
+    ssh_options_set(session, SSH_OPTIONS_HOST, host);
+    ssh_options_set(session, SSH_OPTIONS_USER, user);
+    ssh_options_set(session, SSH_OPTIONS_LOG_VERBOSITY, &verbosity);
 
-   int rc = ssh_connect(s);
-   if(rc != SSH_OK)
-   {
-      fprintf(stderr, "Error connecting to localhost: %s\n",
-              ssh_get_error(s));
-      exit(-1);
-   }
+    // Connect to the server
+    if(ssh_connect(session) != SSH_OK)
+    {
+        fprintf(stderr, "Error connecting to %s: %s\n", host, ssh_get_error(session));
+        exit(-1);
+    }
 
-   enum ssh_known_hosts_e state = ssh_session_is_known_server(s);
-   printf("%d\n", state);
+    if(verify_knownhost(session) < 0)
+    {
+        ssh_disconnect(session);
+        ssh_free(session);
+        exit(-1);
+    }
 
-   ssh_disconnect(s);
-   ssh_free(s);
-   return 0;
+    if(pauthenticate(session) != 0)
+    {
+        puts("Wrong password");
+        ssh_disconnect(session);
+        ssh_free(session);
+        exit(-1);
+    }
+
+    printf("You are now connected to \"%s\" user at host \"%s\"\n", user, host);
+
+    do
+    {
+        print_home_menu();
+        pfgets(buffer, BUFFER_SIZE, stdin);
+
+        if(strcmp(buffer, "1") == 0)
+        {
+            if(terminal_session(session) != 0)
+            {
+                printf("There was a bruh moment %s\n", ssh_get_error(session));
+                ssh_disconnect(session);
+                ssh_free(session);
+                exit(-1);
+            } else
+            {
+                puts("terminal session went ok");
+            }
+        }
+    } while(strcmp(buffer, "quit") != 0 && strcmp(buffer, "0") != 0);
+
+    ssh_disconnect(session);
+    ssh_free(session);
+    return 0;
 }
