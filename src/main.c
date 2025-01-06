@@ -70,6 +70,9 @@ int main(void)
         } else if(strcmp(buffer, "2") == 0)
         {
             easy_navigate_mode(session);
+        } else if(strcmp(buffer, "3") == 0)
+        {
+            easy_navigate_mode_sftp(session);
         }
     } while(strcmp(buffer, "quit") != 0 && strcmp(buffer, "0") != 0);
 

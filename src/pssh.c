@@ -177,6 +177,31 @@ ssh_channel create_channel_with_open_session(ssh_session session)
     return channel;
 }
 
+sftp_session create_sftp_session(ssh_session session)
+{
+    sftp_session sftp;
+    int rc;
+
+    sftp = sftp_new(session);
+    if(sftp == NULL)
+    {
+        fprintf(stderr, "Error allocating SFTP session: %s\n",
+                ssh_get_error(session));
+        return NULL;
+    }
+
+    rc = sftp_init(sftp);
+    if(rc != SSH_OK)
+    {
+        fprintf(stderr, "Error initializing SFTP session: code %d.\n",
+                sftp_get_error(sftp));
+        sftp_free(sftp);
+        return NULL;
+    }
+
+    return sftp;
+}
+
 int request_interactive_shell(ssh_channel channel)
 {
     int rc = ssh_channel_request_pty(channel);
@@ -192,6 +217,40 @@ int request_interactive_shell(ssh_channel channel)
 }
 
 /**
+ * Executes a command and writes output to stdout.
+ */
+int execute_command_on_shell(ssh_channel channel, char* command)
+{
+    char buffer[BUFFER_SIZE];
+    int nbytes;
+    char command_with_nextline[strlen(command) + 1];
+
+    // add nextline to the command so that it executes
+    strncpy(command_with_nextline, command, strlen(command));
+    strcat(command_with_nextline, "\n");
+
+    ssh_channel_write(channel, command_with_nextline, strlen(command_with_nextline));
+    // sleep(3);
+
+    while(ssh_channel_read(channel, buffer, BUFFER_SIZE, 0) == 0);
+    while((nbytes = ssh_channel_read_nonblocking(channel, buffer, BUFFER_SIZE, 0)) > 0)
+    {
+        puts("read");
+        if(fwrite(buffer, 1, nbytes, stdout) != nbytes)
+        {
+            fprintf(stderr, "Error writing \"%s\" command output to stdout: %s",
+                    command, ssh_get_error(channel));
+
+            return SSH_ERROR;
+        }
+        puts("wrote");
+        // usleep(5000L);
+    }
+
+    return 0;
+}
+
+/**
  * Print the home menu that allows the user to open a new terminal session
  */
 void print_home_menu(void)
@@ -199,6 +258,7 @@ void print_home_menu(void)
     puts("You are at home menu type in the number of the action you want to do (0 or quit to quit)");
     puts("1. open new terminal session");
     puts("2. easy navigate mode");
+    puts("3. easy navigate mode sftp");
 }
 
 int terminal_session(ssh_session session)
@@ -258,28 +318,68 @@ int easy_navigate_mode(ssh_session session)
         return SSH_ERROR;
     }
 
-    if(ssh_channel_request_exec(channel, "ps aux") != SSH_OK)
+    if(request_interactive_shell(channel) != SSH_OK)
     {
-        fprintf(stderr, "Failed to execute command %s\n", ssh_get_error(session));
+        fprintf(stderr, "Failed to request shell %s\n", ssh_get_error(session));
         ssh_channel_close(channel);
         ssh_channel_free(channel);
         return SSH_ERROR;
     }
 
+    //TODO: find a better way to do this in case the wait should be longer
+    //wait 1 second for the shell to start.
+    sleep(1);
+
+    // Empty the input
     size_t nbytes;
     char buffer[BUFFER_SIZE];
-    while((nbytes = ssh_channel_read(channel, buffer, sizeof(buffer), 0)) > 0)
+    while((nbytes = ssh_channel_read_nonblocking(channel, buffer, sizeof(buffer), 0)) > 0)
     {
-        if(fwrite(buffer, sizeof(char), nbytes, stdout) != nbytes)
-        {
-            ssh_channel_close(channel);
-            ssh_channel_free(channel);
-            return SSH_ERROR;
-        }
+        puts("Emptied");
+    }
+
+    if(execute_command_on_shell(channel, "ps aux") != SSH_OK)
+    {
+        ssh_channel_close(channel);
+        ssh_channel_free(channel);
+        return SSH_ERROR;
     }
 
     ssh_channel_close(channel);
     ssh_channel_free(channel);
+    return SSH_OK;
+}
+
+int easy_navigate_mode_sftp(ssh_session session)
+{
+    sftp_session sftp = create_sftp_session(session);
+    if(sftp == NULL)
+    {
+        return SSH_ERROR;
+    }
+
+    sftp_dir hdd = sftp_opendir(sftp, "/media/hdd");
+    if(!hdd)
+    {
+        fprintf(stderr, "Failed to open directory: %s\n", ssh_get_error(sftp));
+        sftp_free(sftp);
+        return SSH_ERROR;
+    }
+    printf("%s\n", hdd->name);
+
+    sftp_attributes attr = sftp_readdir(session, hdd);
+    if(!attr)
+    {
+        fprintf(stderr, "Failed to read directory: %s\n", ssh_get_error(session));
+        sftp_closedir(hdd);
+        sftp_free(sftp);
+        return SSH_ERROR;
+    }
+    printf("%s\n", attr->name);
+
+    sftp_attributes_free(attr);
+    sftp_closedir(hdd);
+    sftp_free(sftp);
     return SSH_OK;
 }
 
