@@ -9,6 +9,13 @@
 #include <libssh/sftp.h>
 #define BUFFER_SIZE 256
 
+#define FILE_TYPE_REGULAR_STR "regular"
+#define FILE_TYPE_DIRECTORY_STR "directory"
+#define FILE_TYPE_SYMLINK_STR "symbolic link"
+#define FILE_TYPE_SPECIAL_STR "special"
+#define FILE_TYPE_UNKNOWN_STR "unknown"
+
+
 int verify_knownhost(ssh_session session);
 
 int pauthenticate(ssh_session session);
@@ -16,6 +23,8 @@ int pauthenticate(ssh_session session);
 ssh_channel create_channel_with_open_session(ssh_session session);
 
 sftp_session create_sftp_session(ssh_session session);
+
+int directory_ls_sftp(sftp_session session_sftp, const char* directory_name);
 
 int request_interactive_shell(ssh_channel channel);
 
@@ -32,5 +41,7 @@ int easy_navigate_mode_sftp(ssh_session session);
 char* pfgets(char* string, int size, FILE* fp);
 
 int kbhit(void);
+
+char* get_file_type(u_int8_t type);
 
 #endif // PSSH_H

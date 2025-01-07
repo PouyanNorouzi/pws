@@ -202,6 +202,45 @@ sftp_session create_sftp_session(ssh_session session)
     return sftp;
 }
 
+/**
+ * Shows the provided directories content. Simmilar to running ls.
+ */
+int directory_ls_sftp(sftp_session session_sftp, const char* directory_name)
+{
+    if(session_sftp == NULL || directory_name == NULL)
+    {
+        fprintf(stdout, "sftp session and directory name cannot be empty\n");
+        return SSH_ERROR;
+    }
+
+    sftp_dir directory = sftp_opendir(session_sftp, directory_name);
+    if(!directory)
+    {
+        fprintf(stderr, "Failed to open directory: %s\n", ssh_get_error(session_sftp));
+        sftp_free(session_sftp);
+        return SSH_ERROR;
+    }
+
+    sftp_attributes attr;
+    while((attr = sftp_readdir(session_sftp, directory)) != NULL)
+    {
+        if(attr->name[0] != '.')
+            printf("%s %s\n", attr->name, get_file_type(attr->type));
+    }
+
+    if(sftp_dir_eof(directory) != 1)
+    {
+        fprintf(stderr, "Failed to read directory: %s\n", ssh_get_error(session_sftp));
+        sftp_attributes_free(attr);
+        sftp_closedir(directory);
+        return SSH_ERROR;
+    }
+
+    sftp_attributes_free(attr);
+    sftp_closedir(directory);
+    return SSH_OK;
+}
+
 int request_interactive_shell(ssh_channel channel)
 {
     int rc = ssh_channel_request_pty(channel);
@@ -358,27 +397,8 @@ int easy_navigate_mode_sftp(ssh_session session)
         return SSH_ERROR;
     }
 
-    sftp_dir hdd = sftp_opendir(sftp, "/media/hdd");
-    if(!hdd)
-    {
-        fprintf(stderr, "Failed to open directory: %s\n", ssh_get_error(sftp));
-        sftp_free(sftp);
-        return SSH_ERROR;
-    }
-    printf("%s\n", hdd->name);
+    directory_ls_sftp(sftp, "/media/hdd/Videos");
 
-    sftp_attributes attr = sftp_readdir(session, hdd);
-    if(!attr)
-    {
-        fprintf(stderr, "Failed to read directory: %s\n", ssh_get_error(session));
-        sftp_closedir(hdd);
-        sftp_free(sftp);
-        return SSH_ERROR;
-    }
-    printf("%s\n", attr->name);
-
-    sftp_attributes_free(attr);
-    sftp_closedir(hdd);
     sftp_free(sftp);
     return SSH_OK;
 }
@@ -400,4 +420,28 @@ int kbhit(void)
     FD_SET(0, &fds);
 
     return select(1, &fds, NULL, NULL, &tv);
+}
+
+/**
+ * Takes an integer and returns the corresponding static string of file type.
+ */
+char* get_file_type(u_int8_t type)
+{
+    switch(type)
+    {
+    case SSH_FILEXFER_TYPE_REGULAR:
+        return FILE_TYPE_REGULAR_STR;
+
+    case SSH_FILEXFER_TYPE_DIRECTORY:
+        return FILE_TYPE_DIRECTORY_STR;
+
+    case SSH_FILEXFER_TYPE_SYMLINK:
+        return FILE_TYPE_SYMLINK_STR;
+
+    case SSH_FILEXFER_TYPE_SPECIAL:
+        return FILE_TYPE_SPECIAL_STR;
+
+    default:
+        return FILE_TYPE_UNKNOWN_STR;
+    }
 }

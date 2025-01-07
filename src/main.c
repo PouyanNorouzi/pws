@@ -7,11 +7,15 @@
 /**
  * The command line interface for the application
  */
-int main(void)
+int main(int argc, char const* argv[])
 {
-    int verbosity = SSH_LOG_PROTOCOL;
+    if(argc < 2)
+    {
+        exit(1);
+    }
+    int verbosity = SSH_LOG_NONE;
     char* user = "remoteuser";
-    char* host = getenv("HOST");
+    char* host = argv[1];
     char buffer[BUFFER_SIZE];
 
     ssh_session session = ssh_new();

@@ -25,4 +25,4 @@ rm :
 			rm -rf $(BUILD_DIR)
 
 run: $(EXE)
-			HOST=$(HOST) ./$(EXE)
+			./$(EXE) $(HOST)
