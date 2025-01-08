@@ -54,7 +54,7 @@ int verify_knownhost(ssh_session session)
         break;
     case SSH_KNOWN_HOSTS_CHANGED:
         fprintf(stderr, "Host key for server changed: it is now:\n");
-        ssh_print_hexa("Public key hash", hash, hlen);
+        ssh_print_hash(SSH_PUBLICKEY_HASH_SHA256, hash, hlen);
         fprintf(stderr, "For security reasons, connection will be stopped\n");
         ssh_clean_pubkey_hash(&hash);
 
@@ -68,12 +68,6 @@ int verify_knownhost(ssh_session session)
 
         return -1;
     case SSH_KNOWN_HOSTS_NOT_FOUND:
-        fprintf(stderr, "Could not find known host file.\n");
-        fprintf(stderr, "If you accept the host key here, the file will be"
-                "automatically created.\n");
-
-        /* FALL THROUGH to SSH_SERVER_NOT_KNOWN behavior */
-
     case SSH_KNOWN_HOSTS_UNKNOWN:
         hexa = ssh_get_hexa(hash, hlen);
         fprintf(stderr, "The server is unknown. Do you trust the host key?\n");
@@ -229,6 +223,8 @@ int directory_ls_sftp(sftp_session session_sftp, const char* directory_name)
     {
         if(attr->name[0] != '.')
             printf("%s %s\n", attr->name, get_file_type(attr->type));
+
+        sftp_attributes_free(attr);
     }
 
     if(sftp_dir_eof(directory) != 1)
@@ -298,13 +294,14 @@ int execute_command_on_shell(ssh_channel channel, char* command)
 void print_home_menu(void)
 {
     puts("You are at home menu type in the number of the action you want to do (0 or quit to quit)");
-    puts("1. open new terminal session");
-    puts("2. easy navigate mode");
+    puts("1. open new terminal session(does not work)");
+    puts("2. easy navigate mode(neither does this)");
     puts("3. easy navigate mode sftp");
 }
 
 int terminal_session(ssh_session session)
 {
+    (void)session;
     puts("Not available yet");
     return 0;
 }
@@ -352,14 +349,20 @@ int easy_navigate_mode(ssh_session session)
 
 int easy_navigate_mode_sftp(ssh_session session)
 {
+    char* pwd;
+
     sftp_session sftp = create_sftp_session(session);
     if(sftp == NULL)
     {
         return SSH_ERROR;
     }
 
-    directory_ls_sftp(sftp, "/media/hdd/Videos");
+    pwd = (char*)malloc(sizeof(char) * MAX_DIRECTORY_LENGTH);
+    strcpy(pwd, INITIAL_WORKING_DIRECTORY);
 
+    directory_ls_sftp(sftp, pwd);
+
+    free(pwd);
     sftp_free(sftp);
     return SSH_OK;
 }

@@ -7,7 +7,11 @@
 #include <stdio.h>
 #include <libssh/libssh.h>
 #include <libssh/sftp.h>
+
 #define BUFFER_SIZE 256
+
+#define MAX_DIRECTORY_LENGTH 256
+#define INITIAL_WORKING_DIRECTORY "/media/hdd"
 
 #define FILE_TYPE_REGULAR_STR "regular"
 #define FILE_TYPE_DIRECTORY_STR "directory"
