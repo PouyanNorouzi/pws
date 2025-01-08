@@ -8,7 +8,11 @@
 #include <libssh/libssh.h>
 #include <errno.h>
 #include <string.h>
+#ifndef _WIN32
 #include <bsd/readpassphrase.h>
+#else
+#include <conio.h>
+#endif
 
  /**
   * verify if the host is in the known host files and if not adds the host if trusted.
@@ -148,8 +152,8 @@ int pauthenticate(ssh_session session)
                 memset(buffer, 0, strlen(buffer));
             } else
             {
-                char buffer[BUFFER_SIZE], * ptr;
-                ptr = readpassphrase(prompt, buffer, BUFFER_SIZE, RPP_ECHO_OFF);
+                char buffer[BUFFER_SIZE];
+                readpassphrase(prompt, buffer, BUFFER_SIZE, 0);
                 if(ssh_userauth_kbdint_setanswer(session, iprompt, buffer) < 0)
                     return SSH_AUTH_ERROR;
             }
@@ -274,7 +278,7 @@ int execute_command_on_shell(ssh_channel channel, char* command)
     while((nbytes = ssh_channel_read_nonblocking(channel, buffer, BUFFER_SIZE, 0)) > 0)
     {
         puts("read");
-        if(fwrite(buffer, 1, nbytes, stdout) != nbytes)
+        if(fwrite(buffer, 1, nbytes, stdout) != (size_t)nbytes)
         {
             fprintf(stderr, "Error writing \"%s\" command output to stdout: %s",
                     command, ssh_get_error(channel));
@@ -362,8 +366,14 @@ int easy_navigate_mode_sftp(ssh_session session)
 
 char* pfgets(char* string, int size)
 {
+    size_t len;
+
     fgets(string, size, stdin);
-    string[strlen(string) - 1] = '\0';
+    len = strlen(string);
+    if(len > 0 && string[len - 1] == '\n')
+    {
+        string[len - 1] = '\0';
+    }
 
     return string;
 }
@@ -392,10 +402,49 @@ char* get_file_type(int type)
     }
 }
 
+#ifdef _WIN32
 /**
- * gets the password from the user and hides it on the command line.
+ * gets the password from the user and does not echo it on the terminal.
  */
- // int get_password()
- // {
+char* readpassphrase(const char* prompt, char* buffer, int size, int flag)
+{
+    if(prompt == NULL)
+    {
+        return NULL;
+    }
 
- // }
+    if(prompt != NULL)
+    {
+        printf("%s", prompt);
+    }
+
+    (void)flag;
+
+    int i = 0;
+    int ch;
+
+    while(1)
+    {
+        ch = _getch();
+        if(ch == '\r' || ch == '\n')
+        {
+            break;
+        }
+        if(ch == '\b')
+        {
+            if(i > 0)
+            {
+                i--;
+            }
+        } else if(i < size - 1)
+        {
+            buffer[i++] = (char)ch;
+        }
+    }
+
+    buffer[i] = '\0';
+    printf("\n");
+
+    return buffer;
+}
+#endif

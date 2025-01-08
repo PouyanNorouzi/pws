@@ -42,4 +42,8 @@ char* pfgets(char* string, int size);
 
 char* get_file_type(int type);
 
+#ifdef _WIN32
+char* readpassphrase(const char* prompt, char* buffer, int size, int flag);
+#endif
+
 #endif // PSSH_H

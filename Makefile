@@ -1,10 +1,15 @@
 CC = gcc
-LIBS = -lssh -lbsd
+LIBS = -lssh
 CFLAGS = -Wall -Wextra -Iinclude 
 BUILD_DIR = build
 SRC_DIR = src
 EXE = $(BUILD_DIR)/main
 OBJECTS = $(BUILD_DIR)/main.o $(BUILD_DIR)/pssh.o
+UNAME_S := $(shell uname -s)
+
+ifeq ($(UNAME_S), Linux)
+    LIBS += -lbsd
+endif
 
 include .env
 

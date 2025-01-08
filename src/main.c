@@ -7,7 +7,7 @@
 /**
  * The command line interface for the application
  */
-int main(int argc, char const* argv[])
+int main(void)
 {
     int verbosity = SSH_LOG_NONE;
     char* user = "remoteuser";

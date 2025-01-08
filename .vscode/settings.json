@@ -4,6 +4,9 @@
         "stdio.h": "c",
         "unistd.h": "c",
         "process.h": "c",
-        "libssh.h": "c"
+        "libssh.h": "c",
+        "string.h": "c",
+        "errno.h": "c",
+        "conio.h": "c"
     }
 }
