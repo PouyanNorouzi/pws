@@ -65,8 +65,8 @@ int attr_list_free(AttrList list)
     {
         perv = temp;
         temp = temp->next;
-        sftp_attributes_free(temp->data);
-        free(temp);
+        sftp_attributes_free(perv->data);
+        free(perv);
     }
 
     free(list);
