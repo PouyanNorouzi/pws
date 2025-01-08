@@ -8,6 +8,7 @@
 #include <libssh/libssh.h>
 #include <errno.h>
 #include <string.h>
+#include <bsd/readpassphrase.h>
 
  /**
   * verify if the host is in the known host files and if not adds the host if trusted.
@@ -147,10 +148,8 @@ int pauthenticate(ssh_session session)
                 memset(buffer, 0, strlen(buffer));
             } else
             {
-                char buffer[128], * ptr;
-                printf("%s", prompt);
-                pfgets(buffer, sizeof(buffer));
-                // ptr = getpass(prompt);
+                char buffer[BUFFER_SIZE], * ptr;
+                ptr = readpassphrase(prompt, buffer, BUFFER_SIZE, RPP_ECHO_OFF);
                 if(ssh_userauth_kbdint_setanswer(session, iprompt, buffer) < 0)
                     return SSH_AUTH_ERROR;
             }
@@ -392,3 +391,11 @@ char* get_file_type(int type)
         return FILE_TYPE_UNKNOWN_STR;
     }
 }
+
+/**
+ * gets the password from the user and hides it on the command line.
+ */
+ // int get_password()
+ // {
+
+ // }

@@ -1,5 +1,5 @@
 CC = gcc
-LIBS = -lssh
+LIBS = -lssh -lbsd
 CFLAGS = -Wall -Wextra -Iinclude 
 BUILD_DIR = build
 SRC_DIR = src
