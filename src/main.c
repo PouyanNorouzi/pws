@@ -9,14 +9,15 @@
  */
 int main(int argc, char const* argv[])
 {
-    if(argc < 2)
-    {
-        exit(1);
-    }
     int verbosity = SSH_LOG_NONE;
     char* user = "remoteuser";
-    char* host = argv[1];
+    char* host;
     char buffer[BUFFER_SIZE];
+
+    printf("Enter name of host: ");
+    pfgets(buffer, BUFFER_SIZE);
+    host = (char*)malloc(sizeof(char) * strlen(buffer));
+    strcpy(host, buffer);
 
     ssh_session session = ssh_new();
     if(session == NULL)
@@ -57,20 +58,11 @@ int main(int argc, char const* argv[])
     do
     {
         print_home_menu();
-        pfgets(buffer, BUFFER_SIZE, stdin);
+        pfgets(buffer, BUFFER_SIZE);
 
         if(strcmp(buffer, "1") == 0)
         {
-            if(terminal_session(session) != 0)
-            {
-                printf("There was a bruh moment %s\n", ssh_get_error(session));
-                ssh_disconnect(session);
-                ssh_free(session);
-                exit(-1);
-            } else
-            {
-                puts("terminal session went ok");
-            }
+            terminal_session(session);
         } else if(strcmp(buffer, "2") == 0)
         {
             easy_navigate_mode(session);
@@ -80,6 +72,7 @@ int main(int argc, char const* argv[])
         }
     } while(strcmp(buffer, "quit") != 0 && strcmp(buffer, "0") != 0);
 
+    free(host);
     ssh_disconnect(session);
     ssh_free(session);
     return 0;

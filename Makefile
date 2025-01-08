@@ -8,10 +8,10 @@ OBJECTS = $(BUILD_DIR)/main.o $(BUILD_DIR)/pssh.o
 
 include .env
 
-$(shell mkdir -p $(BUILD_DIR))
+$(shell mkdir $(BUILD_DIR))
 
 $(EXE) : $(OBJECTS)
-			$(CC) $(CFLAGS) -o $(EXE) $(OBJECTS) $(LIBS)
+			$(CC) $(CFLAGS) -o $(EXE) $(OBJECTS) $(LIBS) 
 
 $(BUILD_DIR)/main.o : $(SRC_DIR)/main.c include/pssh.h
 			$(CC) $(CFLAGS) -c $(SRC_DIR)/main.c -o $(BUILD_DIR)/main.o 

@@ -38,10 +38,8 @@ int easy_navigate_mode(ssh_session session);
 
 int easy_navigate_mode_sftp(ssh_session session);
 
-char* pfgets(char* string, int size, FILE* fp);
+char* pfgets(char* string, int size);
 
-int kbhit(void);
-
-char* get_file_type(u_int8_t type);
+char* get_file_type(int type);
 
 #endif // PSSH_H

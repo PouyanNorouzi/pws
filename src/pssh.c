@@ -8,7 +8,6 @@
 #include <libssh/libssh.h>
 #include <errno.h>
 #include <string.h>
-#include <unistd.h>
 
  /**
   * verify if the host is in the known host files and if not adds the host if trusted.
@@ -148,10 +147,11 @@ int pauthenticate(ssh_session session)
                 memset(buffer, 0, strlen(buffer));
             } else
             {
-                char* ptr;
-
-                ptr = getpass(prompt);
-                if(ssh_userauth_kbdint_setanswer(session, iprompt, ptr) < 0)
+                char buffer[128], * ptr;
+                printf("%s", prompt);
+                pfgets(buffer, sizeof(buffer));
+                // ptr = getpass(prompt);
+                if(ssh_userauth_kbdint_setanswer(session, iprompt, buffer) < 0)
                     return SSH_AUTH_ERROR;
             }
         }
@@ -302,49 +302,7 @@ void print_home_menu(void)
 
 int terminal_session(ssh_session session)
 {
-    ssh_channel channel = create_channel_with_open_session(session);
-    if(channel == NULL)
-    {
-        fprintf(stderr, "Failed to open channel for the terminal %s\n", ssh_get_error(session));
-        return -1;
-    }
-
-    if(request_interactive_shell(channel) != SSH_OK)
-    {
-        fprintf(stderr, "Failed to request shell %s\n", ssh_get_error(session));
-        return -1;
-    }
-
-    char buffer[256];
-    int nbytes, nwritten;
-    while(ssh_channel_is_open(channel) && !ssh_channel_is_eof(channel))
-    {
-        nbytes = ssh_channel_read_nonblocking(channel, buffer, sizeof(buffer), 0);
-        if(nbytes < 0) return SSH_ERROR;
-        if(nbytes > 0)
-        {
-            nwritten = write(1, buffer, nbytes);
-            if(nwritten != nbytes) return SSH_ERROR;
-
-            if(!kbhit())
-            {
-                usleep(50000L); // 0.05 second
-                continue;
-            }
-
-            nbytes = read(0, buffer, sizeof(buffer));
-            if(nbytes < 0) return SSH_ERROR;
-            if(nbytes > 0)
-            {
-                nwritten = ssh_channel_write(channel, buffer, nbytes);
-                if(nwritten != nbytes) return SSH_ERROR;
-            }
-        }
-    }
-    printf("out the loop: %d %d\n", ssh_channel_is_open(channel), !ssh_channel_is_eof(channel));
-
-    ssh_channel_close(channel);
-    ssh_channel_free(channel);
+    puts("Not available yet");
     return 0;
 }
 
@@ -403,29 +361,18 @@ int easy_navigate_mode_sftp(ssh_session session)
     return SSH_OK;
 }
 
-char* pfgets(char* string, int size, FILE* fp)
+char* pfgets(char* string, int size)
 {
-    fgets(string, size, fp);
+    fgets(string, size, stdin);
     string[strlen(string) - 1] = '\0';
 
     return string;
 }
 
-int kbhit(void)
-{
-    struct timeval tv = { 0L, 0L };
-    fd_set fds;
-
-    FD_ZERO(&fds);
-    FD_SET(0, &fds);
-
-    return select(1, &fds, NULL, NULL, &tv);
-}
-
 /**
  * Takes an integer and returns the corresponding static string of file type.
  */
-char* get_file_type(u_int8_t type)
+char* get_file_type(int type)
 {
     switch(type)
     {
