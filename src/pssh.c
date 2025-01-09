@@ -3,6 +3,7 @@
  */
 
 #include "pssh.h"
+#include "attr_list.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <libssh/libssh.h>
@@ -200,44 +201,41 @@ sftp_session create_sftp_session(ssh_session session)
 }
 
 /**
- * Shows the provided directories content. Simmilar to running ls.
+ * Returns the provided directories content. Simmilar to running ls.
  */
-int directory_ls_sftp(sftp_session session_sftp, const char* directory_name)
+AttrList directory_ls_sftp(sftp_session session_sftp, const char* directory_name)
 {
     if(session_sftp == NULL || directory_name == NULL)
     {
         fprintf(stdout, "sftp session and directory name cannot be empty\n");
-        return SSH_ERROR;
+        return NULL;
     }
+
+    AttrList list = attr_list_initialize();
 
     sftp_dir directory = sftp_opendir(session_sftp, directory_name);
     if(!directory)
     {
         fprintf(stderr, "Failed to open directory: %s\n", ssh_get_error(session_sftp));
         sftp_free(session_sftp);
-        return SSH_ERROR;
+        return NULL;
     }
 
     sftp_attributes attr;
     while((attr = sftp_readdir(session_sftp, directory)) != NULL)
     {
-        if(attr->name[0] != '.')
-            printf("%s %s\n", attr->name, get_file_type(attr->type));
-
-        sftp_attributes_free(attr);
+        attr_list_add(list, attr);
     }
 
     if(sftp_dir_eof(directory) != 1)
     {
         fprintf(stderr, "Failed to read directory: %s\n", ssh_get_error(session_sftp));
-        sftp_attributes_free(attr);
         sftp_closedir(directory);
-        return SSH_ERROR;
+        return NULL;
     }
 
-    sftp_attributes_free(attr);
     sftp_closedir(directory);
-    return SSH_OK;
+    return list;
 }
 
 int request_interactive_shell(ssh_channel channel)
@@ -350,6 +348,7 @@ int easy_navigate_mode(ssh_session session)
 int easy_navigate_mode_sftp(ssh_session session)
 {
     char* pwd;
+    AttrList list;
 
     sftp_session sftp = create_sftp_session(session);
     if(sftp == NULL)
@@ -360,8 +359,15 @@ int easy_navigate_mode_sftp(ssh_session session)
     pwd = (char*)malloc(sizeof(char) * MAX_DIRECTORY_LENGTH);
     strcpy(pwd, INITIAL_WORKING_DIRECTORY);
 
-    directory_ls_sftp(sftp, pwd);
+    list = directory_ls_sftp(sftp, pwd);
+    if(list == NULL)
+    {
+        return SSH_ERROR;
+    }
 
+    attr_list_show(list);
+
+    attr_list_free(list);
     free(pwd);
     sftp_free(sftp);
     return SSH_OK;

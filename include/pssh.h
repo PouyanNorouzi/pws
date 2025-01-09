@@ -4,6 +4,7 @@
 
 #ifndef PSSH_H
 #define PSSH_H
+#include "attr_list.h"
 #include <stdio.h>
 #include <libssh/libssh.h>
 #include <libssh/sftp.h>
@@ -28,7 +29,7 @@ ssh_channel create_channel_with_open_session(ssh_session session);
 
 sftp_session create_sftp_session(ssh_session session);
 
-int directory_ls_sftp(sftp_session session_sftp, const char* directory_name);
+AttrList directory_ls_sftp(sftp_session session_sftp, const char* directory_name);
 
 int request_interactive_shell(ssh_channel channel);
 

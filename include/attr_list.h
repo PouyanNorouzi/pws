@@ -1,6 +1,9 @@
 #ifndef ATTR_LIST_H
 #define ATTR_LIST_H 
 
+#define ATTR_LIST_OK 1
+#define ATTR_LIST_ERROR 0
+
 #include <stdlib.h>
 #include <libssh/sftp.h>
 
@@ -25,6 +28,8 @@ typedef struct attributes_list* AttrList;
 AttrList attr_list_initialize(void);
 
 int attr_list_add(AttrList list, sftp_attributes attr);
+
+int attr_list_show(AttrList list);
 
 int attr_list_free(AttrList list);
 

@@ -10,6 +10,7 @@
 int main(void)
 {
     int verbosity = SSH_LOG_NONE;
+    int port = 22;
     char* user = "remoteuser";
     char* host;
     char buffer[BUFFER_SIZE];
@@ -29,6 +30,7 @@ int main(void)
     // get the host name from environment variable 
     ssh_options_set(session, SSH_OPTIONS_HOST, host);
     ssh_options_set(session, SSH_OPTIONS_USER, user);
+    ssh_options_set(session, SSH_OPTIONS_PORT, &port);
     ssh_options_set(session, SSH_OPTIONS_LOG_VERBOSITY, &verbosity);
 
     // Connect to the server
