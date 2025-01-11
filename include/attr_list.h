@@ -29,7 +29,11 @@ AttrList attr_list_initialize(void);
 
 int attr_list_add(AttrList list, sftp_attributes attr);
 
+AttrNode attr_list_get_from_postion(AttrList list, int index);
+
 int attr_list_show(AttrList list);
+
+int attr_list_show_with_index(AttrList list);
 
 int attr_list_free(AttrList list);
 

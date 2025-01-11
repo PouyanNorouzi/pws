@@ -12,7 +12,7 @@
 #define BUFFER_SIZE 256
 
 #define MAX_DIRECTORY_LENGTH 256
-#define INITIAL_WORKING_DIRECTORY "/media/hdd"
+#define INITIAL_WORKING_DIRECTORY "/media/ssd"
 
 #define FILE_TYPE_REGULAR_STR "regular"
 #define FILE_TYPE_DIRECTORY_STR "directory"
@@ -30,6 +30,8 @@ ssh_channel create_channel_with_open_session(ssh_session session);
 sftp_session create_sftp_session(ssh_session session);
 
 AttrList directory_ls_sftp(sftp_session session_sftp, const char* directory_name);
+
+int go_to_top_directory(char* pwd);
 
 int request_interactive_shell(ssh_channel channel);
 

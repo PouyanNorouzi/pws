@@ -66,6 +66,33 @@ int attr_list_add(struct attributes_list* list, sftp_attributes attr)
     return ATTR_LIST_OK;
 }
 
+/**
+ * Finds the node at a partictular particulat position. The position starts from 1
+ */
+AttrNode attr_list_get_from_postion(AttrList list, int index)
+{
+    if(list == NULL)
+    {
+        fprintf(stderr, "list cannot be null\n");
+        return NULL;
+    }
+
+    if(index > list->size || index <= 0)
+    {
+        fprintf(stdout, "cannot find %d index in a list with size %d\n", index, list->size);
+        return NULL;
+    }
+
+    AttrNode temp = list->head;
+
+    for(int i = 1; i < index; i++)
+    {
+        temp = temp->next;
+    }
+
+    return temp;
+}
+
 int attr_list_show(AttrList list)
 {
     if(list == NULL)
@@ -79,6 +106,27 @@ int attr_list_show(AttrList list)
     for(int i = 0; i < list->size; i++)
     {
         printf("%s\n", temp->data->name);
+        temp = temp->next;
+    }
+
+    return ATTR_LIST_OK;
+}
+
+int attr_list_show_with_index(AttrList list)
+{
+    if(list == NULL)
+    {
+        fprintf(stdout, "attributs list should not be null\n");
+        return ATTR_LIST_ERROR;
+    }
+
+    printf("0. (previous directory)\n");
+
+    AttrNode temp = list->head;
+
+    for(int i = 0; i < list->size; i++)
+    {
+        printf("%d. %s\n", i + 1, temp->data->name);
         temp = temp->next;
     }
 
