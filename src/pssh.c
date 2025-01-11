@@ -4,6 +4,7 @@
 
 #include "pssh.h"
 #include "attr_list.h"
+#include "dynamic_str.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <libssh/libssh.h>
@@ -247,30 +248,105 @@ AttrList directory_ls_sftp(sftp_session session_sftp, const char* directory_name
  * Takes the pwd string and removes the name of the current directory in order to move to the directory
  * on top of it.
  */
-int go_to_top_directory(char* pwd)
+int go_to_top_directory(DynamicStr pwd)
 {
-    int i = strlen(pwd);
+    int i = pwd->size;
 
-    if(pwd == NULL || i == 0)
+    if(pwd == NULL || i == 1)
     {
         fprintf(stderr, "pwd cannot be null or empty\n");
         return SSH_ERROR;
     }
 
-    if(strcmp(pwd, "/") == 0)
+    if(strcmp(pwd->str, "/") == 0)
     {
         fprintf(stderr, "cannot move to before the root directory");
         return SSH_ERROR;
     }
 
     i--;
-    while(i > 0 && pwd[i] != '/')
-    {
-        pwd[i] = '\0';
+    while(i > 0 && pwd->str[i] != '/')
         i--;
+
+    i = (i == 0) ? 1 : i;
+
+    dynamic_str_remove(pwd, i);
+
+    return SSH_OK;
+}
+
+/**
+ * change pwd to go inside node if it is a direcotry.
+ */
+int cd_sftp(DynamicStr pwd, AttrNode node)
+{
+    int rc;
+
+    if(pwd == NULL || node == NULL)
+    {
+        fprintf(stderr, "pwd or node or cannot be null\n");
+        return SSH_ERROR;
     }
-    if(i != 0)
-        pwd[i] = '\0';
+
+    if(node->data->type != SSH_FILEXFER_TYPE_DIRECTORY)
+    {
+        fprintf(stderr, "node must be a directory\n");
+        return SSH_ERROR;
+    }
+
+    // if the array is just '/' and '\0' we are at root directory
+    if(pwd->size != 2)
+    {
+        rc = dynamic_str_cat(pwd, "/");
+        if(rc != DYNAMIC_STR_OK)
+        {
+            fprintf(stderr, "error concaconating pwd\n");
+            return SSH_ERROR;
+        }
+    }
+
+    rc = dynamic_str_cat(pwd, node->data->name);
+    if(rc != DYNAMIC_STR_OK)
+    {
+        fprintf(stderr, "error concaconating pwd\n");
+        return SSH_ERROR;
+    }
+
+    return SSH_OK;
+}
+
+int handle_directory_sftp(char* pwd, AttrNode node)
+{
+    if(pwd == NULL || node == NULL)
+    {
+        fprintf(stderr, "pwd or node cannot be empty\n");
+        return SSH_ERROR;
+    }
+
+    if(node->data->type != SSH_FILEXFER_TYPE_DIRECTORY)
+    {
+        fprintf(stderr, "%s/%s is not a directory\n", pwd, node->data->name);
+        return SSH_ERROR;
+    }
+
+    char buffer[BUFFER_SIZE];
+
+    printf("%s/%s is a directory what do you want to do?\n", pwd, node->data->name);
+    printf("1. Download the directory recursively\n");
+    printf("2. Go inside the directory\n");
+    pfgets(buffer, BUFFER_SIZE);
+
+    if(buffer[0] == '1')
+    {
+        printf("You picked 1\n");
+    } else if(buffer[0] == '2')
+    {
+        printf("You picked 2\n");
+    } else
+    {
+        printf("Invalid input going back\n");
+        return SSH_OK;
+    }
 
     return SSH_OK;
 }
@@ -384,10 +460,10 @@ int easy_navigate_mode(ssh_session session)
 
 int easy_navigate_mode_sftp(ssh_session session)
 {
-    char* pwd, buffer[BUFFER_SIZE];
+    char buffer[BUFFER_SIZE];
+    DynamicStr pwd;
     AttrList list;
     AttrNode node;
-    int pwd_str_times_allocated = 0; // The amount of times that the pwd string has had to be allocated
     int quit = 0;
 
     sftp_session sftp = create_sftp_session(session);
@@ -397,25 +473,21 @@ int easy_navigate_mode_sftp(ssh_session session)
     }
 
     // set the present working direcrory as initial working directory
-    pwd = (char*)malloc(sizeof(char) * MAX_DIRECTORY_LENGTH);
+    pwd = dynamic_str_init(INITIAL_WORKING_DIRECTORY);
     if(pwd == NULL)
     {
-        fprintf(stderr, "Error allocating memory to present working directory\n");
         sftp_free(sftp);
         return SSH_ERROR;
     }
-    pwd_str_times_allocated++;
-    strcpy(pwd, INITIAL_WORKING_DIRECTORY);
-    printf("%lu\n", sizeof(pwd));
 
     while(!quit)
     {
-        printf("\nYou are now at \"%s\" directory\n", pwd);
+        printf("\nYou are now at \"%s\" directory\n", pwd->str);
 
-        list = directory_ls_sftp(sftp, pwd);
+        list = directory_ls_sftp(sftp, pwd->str);
         if(list == NULL)
         {
-            free(pwd);
+            dynamic_str_free(pwd);
             sftp_free(sftp);
             return SSH_ERROR;
         }
@@ -430,7 +502,7 @@ int easy_navigate_mode_sftp(ssh_session session)
             quit = 1;
         } else
         {
-            // convert to number and detect errors
+            // convert input to number and detect errors
             char* endptr;
             long num = strtol(buffer, &endptr, 10);
             if(endptr == buffer)
@@ -447,34 +519,18 @@ int easy_navigate_mode_sftp(ssh_session session)
 
             if(num == 0)
             {
-                // figure out what functionality we can have with this
-                // maybe it will just refresh
-                go_to_top_directory(pwd);
+                go_to_top_directory(pwd);// TODO fix
                 continue;
             }
 
             node = attr_list_get_from_postion(list, num);
 
-            if((int)(strlen(pwd) + strlen(node->data->name)) > MAX_DIRECTORY_LENGTH * pwd_str_times_allocated)
-            {
-                pwd = realloc(pwd, (pwd_str_times_allocated + 1) * MAX_DIRECTORY_LENGTH);
-                if(pwd == NULL)
-                {
-                    fprintf(stderr, "memory reallocation failed when trying to increase the size of pwd\n");
-                    attr_list_free(list);
-                    sftp_free(sftp);
-                    return SSH_ERROR;
-                }
-                pwd_str_times_allocated++;
-            }
-            if(strcmp(pwd, "/") != 0)
-                strcat(pwd, "/");
-            strcat(pwd, node->data->name);
+            cd_sftp(pwd, node);
         }
     }
 
     attr_list_free(list);
-    free(pwd);
+    dynamic_str_free(pwd);
     sftp_free(sftp);
     return SSH_OK;
 }

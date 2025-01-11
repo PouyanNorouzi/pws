@@ -5,6 +5,7 @@
 #ifndef PSSH_H
 #define PSSH_H
 #include "attr_list.h"
+#include "dynamic_str.h"
 #include <stdio.h>
 #include <libssh/libssh.h>
 #include <libssh/sftp.h>
@@ -31,7 +32,11 @@ sftp_session create_sftp_session(ssh_session session);
 
 AttrList directory_ls_sftp(sftp_session session_sftp, const char* directory_name);
 
-int go_to_top_directory(char* pwd);
+int go_to_top_directory(DynamicStr pwd);
+
+int cd_sftp(DynamicStr pwd, AttrNode node);
+
+int handle_directory_sftp(char* pwd, AttrNode node);
 
 int request_interactive_shell(ssh_channel channel);
 
