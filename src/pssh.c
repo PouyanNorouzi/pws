@@ -10,15 +10,18 @@
 #include <libssh/libssh.h>
 #include <errno.h>
 #include <string.h>
+#include <fcntl.h>
 #ifndef _WIN32
 #include <bsd/readpassphrase.h>
 #else
 #include <conio.h>
 #endif
 
- /**
-  * verify if the host is in the known host files and if not adds the host if trusted.
-  */
+const char* download_location = "/home/batmanpouknight/Downloads";
+
+/**
+ * verify if the host is in the known host files and if not adds the host if trusted.
+ */
 int verify_knownhost(ssh_session session)
 {
     enum ssh_known_hosts_e state;
@@ -288,12 +291,6 @@ int cd_sftp(DynamicStr pwd, AttrNode node)
         return SSH_ERROR;
     }
 
-    if(node->data->type != SSH_FILEXFER_TYPE_DIRECTORY)
-    {
-        fprintf(stderr, "node must be a directory\n");
-        return SSH_ERROR;
-    }
-
     // if the array is just '/' and '\0' we are at root directory
     if(pwd->size != 2)
     {
@@ -315,7 +312,44 @@ int cd_sftp(DynamicStr pwd, AttrNode node)
     return SSH_OK;
 }
 
-int handle_directory_sftp(char* pwd, AttrNode node)
+int handle_file_sftp(sftp_session session, DynamicStr pwd, AttrNode node)
+{
+    if(pwd == NULL || node == NULL)
+    {
+        fprintf(stderr, "pwd or node cannot be empty\n");
+        return SSH_ERROR;
+    }
+
+    if(node->data->type != SSH_FILEXFER_TYPE_REGULAR)
+    {
+        fprintf(stderr, "%s/%s is not a regular file\n", pwd->str, node->data->name);
+        return SSH_ERROR;
+    }
+
+    char buffer[BUFFER_SIZE];
+    DynamicStr curr_dir = dynamic_str_init(pwd->str);
+
+    cd_sftp(curr_dir, node);
+
+    printf("%s is a regular file what do you want to do?\n", pwd->str);
+    printf("1. Download the file\n");
+    pfgets(buffer, BUFFER_SIZE);
+
+    switch(buffer[0])
+    {
+    case '1':
+        download_file(session, curr_dir->str, download_location, node);
+        break;
+    default:
+        printf("Invalid input going back\n");
+        break;
+    }
+
+    dynamic_str_free(curr_dir);
+    return SSH_OK;
+}
+
+int handle_directory_sftp(sftp_session session, DynamicStr pwd, AttrNode node)
 {
     if(pwd == NULL || node == NULL)
     {
@@ -325,29 +359,137 @@ int handle_directory_sftp(char* pwd, AttrNode node)
 
     if(node->data->type != SSH_FILEXFER_TYPE_DIRECTORY)
     {
-        fprintf(stderr, "%s/%s is not a directory\n", pwd, node->data->name);
+        fprintf(stderr, "%s/%s is not a directory\n", pwd->str, node->data->name);
         return SSH_ERROR;
     }
 
     char buffer[BUFFER_SIZE];
+    DynamicStr curr_dir = dynamic_str_init(pwd->str);
 
-    printf("%s/%s is a directory what do you want to do?\n", pwd, node->data->name);
+    cd_sftp(curr_dir, node);
+
+    printf("%s is a directory what do you want to do?\n", pwd->str);
     printf("1. Download the directory recursively\n");
     printf("2. Go inside the directory\n");
     pfgets(buffer, BUFFER_SIZE);
 
-    if(buffer[0] == '1')
+    switch(buffer[0])
     {
-        printf("You picked 1\n");
-    } else if(buffer[0] == '2')
-    {
-        printf("You picked 2\n");
-    } else
-    {
+    case '1':
+        download_directory(session, curr_dir->str);
+        break;
+    case '2':
+        cd_sftp(pwd, node);
+        break;
+    default:
         printf("Invalid input going back\n");
-        return SSH_OK;
+        break;
     }
 
+    dynamic_str_free(curr_dir);
+    return SSH_OK;
+}
+
+int download_directory(sftp_session session, char* dir)
+{
+    DynamicStr curr_download_location;
+    char* folder_name;
+
+    if(session == NULL || dir == NULL)
+    {
+        fprintf(stderr, "session and dir path cannot be null\n");
+        return SSH_ERROR;
+    }
+
+    sftp_dir directory = sftp_opendir(session, dir);
+    if(!directory)
+    {
+        fprintf(stderr, "Failed to open directory: %s\n", ssh_get_error(session));
+        return SSH_ERROR;
+    }
+
+    curr_download_location = dynamic_str_init(download_location);
+    folder_name = get_filename_from_path(dir);
+
+    dynamic_str_cat(curr_download_location, "/");
+    dynamic_str_cat(curr_download_location, folder_name);
+
+    free(folder_name);
+
+    sftp_attributes attr;
+    while((attr = sftp_readdir(session, directory)) != NULL)
+    {
+        //download
+    }
+
+    if(sftp_dir_eof(directory) != 1)
+    {
+        fprintf(stderr, "Failed to read directory: %s\n", ssh_get_error(session));
+        dynamic_str_free(curr_download_location);
+        sftp_closedir(directory);
+        return SSH_ERROR;
+    }
+
+    dynamic_str_free(curr_download_location);
+    sftp_closedir(directory);
+    return SSH_OK;
+}
+
+int download_file(sftp_session session, char* file, const char* location, AttrNode node)
+{
+    sftp_file file_sftp;
+    char buffer[DOWNLOAD_CHUNK_SIZE];
+    char* download_file;
+    char* file_name;
+    FILE* fp;
+    ssize_t nbytes;
+    unsigned long long total_written = 0;
+
+    file_sftp = sftp_open(session, file, O_RDONLY, 0);
+    if(file_sftp == NULL)
+    {
+        fprintf(stderr, "could not open file\n");
+        return SSH_ERROR;
+    }
+
+    // TODO write better code
+    file_name = get_filename_from_path(file);
+    download_file = (char*)malloc(sizeof(char) * (strlen(location) + strlen(file_name) + 2));
+    strcpy(download_file, location);
+    strcat(download_file, "/");
+    strcat(download_file, file_name);
+    printf("%s\n", download_file);
+
+    fp = fopen(download_file, "w");
+    if(fp == NULL)
+    {
+        fprintf(stderr, "Failed to open file at %s\n", download_file);
+        return SSH_ERROR;
+    }
+    // no longer needed
+    free(download_file);
+    free(file_name);
+
+    while((nbytes = sftp_read(file_sftp, buffer, DOWNLOAD_CHUNK_SIZE)) != 0)
+    {
+        if(nbytes < 0)
+        {
+            fprintf(stderr, "Error while reading from the file\n");
+            sftp_close(file_sftp);
+            return SSH_OK;
+        }
+
+        if(((ssize_t)fwrite(buffer, sizeof(char), DOWNLOAD_CHUNK_SIZE, fp)) != nbytes)
+        {
+            fprintf(stderr, "Error while writing to the file\n");
+            sftp_close(file_sftp);
+            return SSH_OK;
+        }
+        total_written += nbytes;
+        printf("wrote %llu of %lu \n", total_written, node->data->size);
+    }
+
+    sftp_close(file_sftp);
     return SSH_OK;
 }
 
@@ -519,13 +661,34 @@ int easy_navigate_mode_sftp(ssh_session session)
 
             if(num == 0)
             {
-                go_to_top_directory(pwd);// TODO fix
+                go_to_top_directory(pwd);
                 continue;
             }
 
             node = attr_list_get_from_postion(list, num);
 
-            cd_sftp(pwd, node);
+            switch(node->data->type)
+            {
+            case SSH_FILEXFER_TYPE_REGULAR:
+                handle_file_sftp(sftp, pwd, node);
+                break;
+
+            case SSH_FILEXFER_TYPE_DIRECTORY:
+                handle_directory_sftp(sftp, pwd, node);
+                break;
+
+            case SSH_FILEXFER_TYPE_SYMLINK:
+                puts("symlink");
+                break;
+
+            case SSH_FILEXFER_TYPE_SPECIAL:
+                puts("special");
+                break;
+
+            default:
+                puts("others");
+                break;
+            }
         }
     }
 
@@ -552,7 +715,7 @@ char* pfgets(char* string, int size)
 /**
  * Takes an integer and returns the corresponding static string of file type.
  */
-char* get_file_type(int type)
+char* get_file_type_str(int type)
 {
     switch(type)
     {
@@ -573,6 +736,45 @@ char* get_file_type(int type)
     }
 }
 
+char* get_file_type_color(int type)
+{
+    switch(type)
+    {
+    case SSH_FILEXFER_TYPE_REGULAR:
+        return FILE_TYPE_REGULAR_COLOR;
+
+    case SSH_FILEXFER_TYPE_DIRECTORY:
+        return FILE_TYPE_DIRECTORY_COLOR;
+
+    case SSH_FILEXFER_TYPE_SYMLINK:
+        return FILE_TYPE_SYMLINK_COLOR;
+
+    case SSH_FILEXFER_TYPE_SPECIAL:
+        return FILE_TYPE_SPECIAL_COLOR;
+
+    default:
+        return FILE_TYPE_UNKNOWN_COLOR;
+    }
+}
+
+/**
+ * returns the name of the file based on the path name.
+ * must be used with free to deallocate the returned pointer.
+ */
+static char* get_filename_from_path(char* path)
+{
+    char* filename;
+    int i = strlen(path) - 1;
+
+    while(i > 0 && path[i] != '/')
+        i--;
+
+    filename = (char*)malloc(sizeof(char) * (strlen(path) - i));
+
+    strcpy(filename, path + i + 1);
+
+    return filename;
+}
 #ifdef _WIN32
 /**
  * gets the password from the user and does not echo it on the terminal.

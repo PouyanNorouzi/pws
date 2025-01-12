@@ -1,4 +1,5 @@
 #include "attr_list.h"
+#include "pssh.h"
 #include <libssh/sftp.h>
 #include <stdio.h>
 
@@ -126,7 +127,9 @@ int attr_list_show_with_index(AttrList list)
 
     for(int i = 0; i < list->size; i++)
     {
-        printf("%d. %s\n", i + 1, temp->data->name);
+        printf("%d. \e[%sm%s\e[0m\n", i + 1,
+               get_file_type_color(temp->data->type),
+               temp->data->name);
         temp = temp->next;
     }
 

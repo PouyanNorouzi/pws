@@ -8,6 +8,9 @@
         "string.h": "c",
         "errno.h": "c",
         "conio.h": "c",
-        "readpassphrase.h": "c"
+        "readpassphrase.h": "c",
+        "__node_handle": "c",
+        "stat.h": "c",
+        "fcntl.h": "c"
     }
 }

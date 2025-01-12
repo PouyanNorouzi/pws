@@ -11,7 +11,7 @@ struct dynamic_str {
 
 typedef struct dynamic_str* DynamicStr;
 
-DynamicStr dynamic_str_init(char* str);
+DynamicStr dynamic_str_init(const char* str);
 
 int dynamic_str_cat(DynamicStr dest, char* src);
 

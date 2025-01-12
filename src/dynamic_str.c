@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 
-DynamicStr dynamic_str_init(char* str)
+DynamicStr dynamic_str_init(const char* str)
 {
     if(str == NULL)
     {
