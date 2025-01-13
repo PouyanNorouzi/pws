@@ -11,8 +11,10 @@
 #include <errno.h>
 #include <string.h>
 #include <fcntl.h>
+#include <time.h>
 #ifndef _WIN32
 #include <bsd/readpassphrase.h>
+#include <sys/stat.h>
 #else
 #include <conio.h>
 #endif
@@ -338,7 +340,7 @@ int handle_file_sftp(sftp_session session, DynamicStr pwd, AttrNode node)
     switch(buffer[0])
     {
     case '1':
-        download_file(session, curr_dir->str, download_location, node);
+        download_file(session, curr_dir->str, download_location, node->data);
         break;
     default:
         printf("Invalid input going back\n");
@@ -376,7 +378,7 @@ int handle_directory_sftp(sftp_session session, DynamicStr pwd, AttrNode node)
     switch(buffer[0])
     {
     case '1':
-        download_directory(session, curr_dir->str);
+        download_directory(session, curr_dir->str, download_location);
         break;
     case '2':
         cd_sftp(pwd, node);
@@ -390,9 +392,12 @@ int handle_directory_sftp(sftp_session session, DynamicStr pwd, AttrNode node)
     return SSH_OK;
 }
 
-int download_directory(sftp_session session, char* dir)
+int download_directory(sftp_session session, char* dir, const char* location)
 {
+    AttrList list;
+    AttrNode node;
     DynamicStr curr_download_location;
+    DynamicStr curr_downloading;
     char* folder_name;
 
     if(session == NULL || dir == NULL)
@@ -401,14 +406,7 @@ int download_directory(sftp_session session, char* dir)
         return SSH_ERROR;
     }
 
-    sftp_dir directory = sftp_opendir(session, dir);
-    if(!directory)
-    {
-        fprintf(stderr, "Failed to open directory: %s\n", ssh_get_error(session));
-        return SSH_ERROR;
-    }
-
-    curr_download_location = dynamic_str_init(download_location);
+    curr_download_location = dynamic_str_init(location);
     folder_name = get_filename_from_path(dir);
 
     dynamic_str_cat(curr_download_location, "/");
@@ -416,31 +414,57 @@ int download_directory(sftp_session session, char* dir)
 
     free(folder_name);
 
-    sftp_attributes attr;
-    while((attr = sftp_readdir(session, directory)) != NULL)
+    if(create_directory(curr_download_location->str) != 0)
     {
-        //download
-    }
-
-    if(sftp_dir_eof(directory) != 1)
-    {
-        fprintf(stderr, "Failed to read directory: %s\n", ssh_get_error(session));
+        fprintf(stderr, "Failed to create directory at %s\n", curr_download_location->str);
         dynamic_str_free(curr_download_location);
-        sftp_closedir(directory);
         return SSH_ERROR;
     }
 
+    curr_downloading = dynamic_str_init(dir);
+
+    list = directory_ls_sftp(session, dir);
+    if(list == NULL)
+    {
+        dynamic_str_free(curr_download_location);
+        dynamic_str_free(curr_downloading);
+        return SSH_OK;
+    }
+
+    node = list->head;
+    while(node != NULL)
+    {
+        dynamic_str_cat(curr_downloading, "/");
+        dynamic_str_cat(curr_downloading, node->data->name);
+        if(node->data->type == SSH_FILEXFER_TYPE_REGULAR)
+        {
+            download_file(session, curr_downloading->str, curr_download_location->str, node->data);
+        } else if(node->data->type == SSH_FILEXFER_TYPE_DIRECTORY)
+        {
+            download_directory(session, curr_downloading->str, curr_download_location->str);
+        } else
+        {
+            printf("donwnload not supported for %s\n", node->data->name);
+        }
+        dynamic_str_remove(curr_downloading, curr_downloading->size - strlen(node->data->name) - 2);
+
+        node = node->next;
+    }
+
+    attr_list_free(list);
     dynamic_str_free(curr_download_location);
-    sftp_closedir(directory);
+    dynamic_str_free(curr_downloading);
     return SSH_OK;
 }
 
-int download_file(sftp_session session, char* file, const char* location, AttrNode node)
+int download_file(sftp_session session, char* file, const char* location, sftp_attributes attr)
 {
     sftp_file file_sftp;
     char buffer[DOWNLOAD_CHUNK_SIZE];
     char* download_file;
     char* file_name;
+    char* readable_size;
+    char* readable_written;
     FILE* fp;
     ssize_t nbytes;
     unsigned long long total_written = 0;
@@ -468,27 +492,47 @@ int download_file(sftp_session session, char* file, const char* location, AttrNo
     }
     // no longer needed
     free(download_file);
-    free(file_name);
 
+    readable_size = get_readable_size(attr->size);
+
+    time_t last_report = time(NULL);
+    time_t current_time = last_report;
     while((nbytes = sftp_read(file_sftp, buffer, DOWNLOAD_CHUNK_SIZE)) != 0)
     {
         if(nbytes < 0)
         {
             fprintf(stderr, "Error while reading from the file\n");
+            fclose(fp);
+            free(readable_size);
+            free(file_name);
             sftp_close(file_sftp);
-            return SSH_OK;
+            return SSH_ERROR;
         }
 
-        if(((ssize_t)fwrite(buffer, sizeof(char), DOWNLOAD_CHUNK_SIZE, fp)) != nbytes)
+        if(fwrite(buffer, sizeof(char), nbytes, fp) != (size_t)nbytes)
         {
             fprintf(stderr, "Error while writing to the file\n");
+            fclose(fp);
+            free(readable_size);
+            free(file_name);
             sftp_close(file_sftp);
-            return SSH_OK;
+            return SSH_ERROR;
         }
         total_written += nbytes;
-        printf("wrote %llu of %lu \n", total_written, node->data->size);
+
+        current_time = time(NULL);
+        if(current_time > last_report)
+        {
+            readable_written = get_readable_size(total_written);
+            printf("[%s] wrote %s of %s \n", file_name, readable_written, readable_size);
+            last_report = time(NULL);
+            free(readable_written);
+        }
     }
 
+    fclose(fp);
+    free(readable_size);
+    free(file_name);
     sftp_close(file_sftp);
     return SSH_OK;
 }
@@ -775,6 +819,41 @@ static char* get_filename_from_path(char* path)
 
     return filename;
 }
+
+int create_directory(char* path)
+{
+#ifdef _WIN32
+    // complete the code for windows
+#else
+    return mkdir(path, 0775);
+#endif
+}
+
+char* get_readable_size(size_t size)
+{
+    char* result;
+    char buffer[BUFFER_SIZE];
+
+    if(size / BYTES_IN_KB == 0)
+    {
+        sprintf(buffer, "%luB", size);
+    } else if(size / BYTES_IN_MB == 0)
+    {
+        sprintf(buffer, "%luKB", size / BYTES_IN_KB);
+    } else if(size / BYTES_IN_GB == 0)
+    {
+        sprintf(buffer, "%luMB", size / BYTES_IN_MB);
+    } else
+    {
+        sprintf(buffer, "%luGB", size / BYTES_IN_GB);
+    }
+
+    result = (char*)malloc(strlen(buffer) + 1);
+    strcpy(result, buffer);
+
+    return result;
+}
+
 #ifdef _WIN32
 /**
  * gets the password from the user and does not echo it on the terminal.

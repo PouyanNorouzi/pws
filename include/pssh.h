@@ -12,7 +12,11 @@
 
 #define BUFFER_SIZE 256
 
-#define DOWNLOAD_CHUNK_SIZE 16384
+#define DOWNLOAD_CHUNK_SIZE 32768
+
+#define BYTES_IN_KB 1024
+#define BYTES_IN_MB (1024 * 1024)
+#define BYTES_IN_GB (1024 * 1024 * 1024)
 
 #define MAX_DIRECTORY_LENGTH 256
 #define INITIAL_WORKING_DIRECTORY "/media/ssd"
@@ -48,9 +52,9 @@ int handle_file_sftp(sftp_session session, DynamicStr pwd, AttrNode node);
 
 int handle_directory_sftp(sftp_session session, DynamicStr pwd, AttrNode node);
 
-int download_directory(sftp_session session, char* dir);
+int download_directory(sftp_session session, char* dir, const char* location);
 
-int download_file(sftp_session session, char* file, const char* location, AttrNode node);
+int download_file(sftp_session session, char* file, const char* location, sftp_attributes attr);
 
 int request_interactive_shell(ssh_channel channel);
 
@@ -71,6 +75,10 @@ char* get_file_type_str(int type);
 char* get_file_type_color(int type);
 
 static char* get_filename_from_path(char* path);
+
+int create_directory(char* path);
+
+char* get_readable_size(size_t size);
 
 #ifdef _WIN32
 char* readpassphrase(const char* prompt, char* buffer, int size, int flag);
