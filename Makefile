@@ -4,7 +4,8 @@ CFLAGS = -Wall -Wextra -Iinclude
 BUILD_DIR = build
 SRC_DIR = src
 EXE = $(BUILD_DIR)/main
-OBJECTS = $(BUILD_DIR)/main.o $(BUILD_DIR)/pssh.o $(BUILD_DIR)/attr_list.o $(BUILD_DIR)/dynamic_str.o
+OBJECTS = $(BUILD_DIR)/main.o $(BUILD_DIR)/pssh.o $(BUILD_DIR)/attr_list.o $(BUILD_DIR)/dynamic_str.o \
+			$(BUILD_DIR)/path.o
 UNAME_S := $(shell uname -s)
 
 ifeq ($(UNAME_S), Linux)
@@ -29,6 +30,9 @@ $(BUILD_DIR)/attr_list.o: $(SRC_DIR)/attr_list.c include/attr_list.h
 
 $(BUILD_DIR)/dynamic_str.o: $(SRC_DIR)/dynamic_str.c include/dynamic_str.h
 			$(CC) $(CFLAGS) -c $(SRC_DIR)/dynamic_str.c -o $(BUILD_DIR)/dynamic_str.o 
+
+$(BUILD_DIR)/path.o: $(SRC_DIR)/path.c include/path.h
+			$(CC) $(CFLAGS) -c $(SRC_DIR)/path.c -o $(BUILD_DIR)/path.o 
 
 .PHONY : rm
 

@@ -11,6 +11,8 @@
         "readpassphrase.h": "c",
         "__node_handle": "c",
         "stat.h": "c",
-        "fcntl.h": "c"
+        "fcntl.h": "c",
+        "path.h": "c",
+        "pssh.h": "c"
     }
 }

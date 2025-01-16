@@ -5,6 +5,7 @@
 #include "pssh.h"
 #include "attr_list.h"
 #include "dynamic_str.h"
+#include "path.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <libssh/libssh.h>
@@ -19,11 +20,9 @@
 #include <conio.h>
 #endif
 
-const char* download_location = "/home/batmanpouknight/Downloads";
-
-/**
- * verify if the host is in the known host files and if not adds the host if trusted.
- */
+ /**
+  * verify if the host is in the known host files and if not adds the host if trusted.
+  */
 int verify_knownhost(ssh_session session)
 {
     enum ssh_known_hosts_e state;
@@ -249,73 +248,12 @@ AttrList directory_ls_sftp(sftp_session session_sftp, const char* directory_name
     return list;
 }
 
-/**
- * Takes the pwd string and removes the name of the current directory in order to move to the directory
- * on top of it.
- */
-int go_to_top_directory(DynamicStr pwd)
+int handle_file_sftp(sftp_session session, Path pwd, AttrNode node)
 {
-    int i = pwd->size;
+    char buffer[BUFFER_SIZE];
+    Path curr_dir;
+    Path default_path;
 
-    if(pwd == NULL || i == 1)
-    {
-        fprintf(stderr, "pwd cannot be null or empty\n");
-        return SSH_ERROR;
-    }
-
-    if(strcmp(pwd->str, "/") == 0)
-    {
-        fprintf(stderr, "cannot move to before the root directory");
-        return SSH_ERROR;
-    }
-
-    i--;
-    while(i > 0 && pwd->str[i] != '/')
-        i--;
-
-    i = (i == 0) ? 1 : i;
-
-    dynamic_str_remove(pwd, i);
-
-    return SSH_OK;
-}
-
-/**
- * change pwd to go inside node if it is a direcotry.
- */
-int cd_sftp(DynamicStr pwd, AttrNode node)
-{
-    int rc;
-
-    if(pwd == NULL || node == NULL)
-    {
-        fprintf(stderr, "pwd or node or cannot be null\n");
-        return SSH_ERROR;
-    }
-
-    // if the array is just '/' and '\0' we are at root directory
-    if(pwd->size != 2)
-    {
-        rc = dynamic_str_cat(pwd, "/");
-        if(rc != DYNAMIC_STR_OK)
-        {
-            fprintf(stderr, "error concaconating pwd\n");
-            return SSH_ERROR;
-        }
-    }
-
-    rc = dynamic_str_cat(pwd, node->data->name);
-    if(rc != DYNAMIC_STR_OK)
-    {
-        fprintf(stderr, "error concaconating pwd\n");
-        return SSH_ERROR;
-    }
-
-    return SSH_OK;
-}
-
-int handle_file_sftp(sftp_session session, DynamicStr pwd, AttrNode node)
-{
     if(pwd == NULL || node == NULL)
     {
         fprintf(stderr, "pwd or node cannot be empty\n");
@@ -328,10 +266,10 @@ int handle_file_sftp(sftp_session session, DynamicStr pwd, AttrNode node)
         return SSH_ERROR;
     }
 
-    char buffer[BUFFER_SIZE];
-    DynamicStr curr_dir = dynamic_str_init(pwd->str);
+    curr_dir = path_init(pwd->str);
+    path_go_into(curr_dir, node->data->name);
 
-    cd_sftp(curr_dir, node);
+    default_path = path_init(DEFAULT_DOWNLOAD_LOCATION);
 
     printf("%s is a regular file what do you want to do?\n", pwd->str);
     printf("1. Download the file\n");
@@ -340,19 +278,24 @@ int handle_file_sftp(sftp_session session, DynamicStr pwd, AttrNode node)
     switch(buffer[0])
     {
     case '1':
-        download_file(session, curr_dir->str, download_location, node->data);
+        download_file(session, curr_dir, default_path, node->data);
         break;
     default:
         printf("Invalid input going back\n");
         break;
     }
 
-    dynamic_str_free(curr_dir);
+    path_free(default_path);
+    path_free(curr_dir);
     return SSH_OK;
 }
 
-int handle_directory_sftp(sftp_session session, DynamicStr pwd, AttrNode node)
+int handle_directory_sftp(sftp_session session, Path pwd, AttrNode node)
 {
+    Path curr_dir;
+    Path default_path;
+    char buffer[BUFFER_SIZE];
+
     if(pwd == NULL || node == NULL)
     {
         fprintf(stderr, "pwd or node cannot be empty\n");
@@ -365,10 +308,11 @@ int handle_directory_sftp(sftp_session session, DynamicStr pwd, AttrNode node)
         return SSH_ERROR;
     }
 
-    char buffer[BUFFER_SIZE];
-    DynamicStr curr_dir = dynamic_str_init(pwd->str);
 
-    cd_sftp(curr_dir, node);
+    curr_dir = path_init(pwd->str);
+    path_go_into(curr_dir, node->data->name);
+
+    default_path = path_init(DEFAULT_DOWNLOAD_LOCATION);
 
     printf("%s is a directory what do you want to do?\n", pwd->str);
     printf("1. Download the directory recursively\n");
@@ -378,26 +322,27 @@ int handle_directory_sftp(sftp_session session, DynamicStr pwd, AttrNode node)
     switch(buffer[0])
     {
     case '1':
-        download_directory(session, curr_dir->str, download_location);
+        download_directory(session, curr_dir, default_path);
         break;
     case '2':
-        cd_sftp(pwd, node);
+        path_go_into(pwd, node->data->name);
         break;
     default:
         printf("Invalid input going back\n");
         break;
     }
 
-    dynamic_str_free(curr_dir);
+    path_free(default_path);
+    path_free(curr_dir);
     return SSH_OK;
 }
 
-int download_directory(sftp_session session, char* dir, const char* location)
+int download_directory(sftp_session session, Path dir, Path location)
 {
     AttrList list;
     AttrNode node;
-    DynamicStr curr_download_location;
-    DynamicStr curr_downloading;
+    Path curr_download_location;
+    Path curr_downloading;
     char* folder_name;
 
     if(session == NULL || dir == NULL)
@@ -406,11 +351,10 @@ int download_directory(sftp_session session, char* dir, const char* location)
         return SSH_ERROR;
     }
 
-    curr_download_location = dynamic_str_init(location);
-    folder_name = get_filename_from_path(dir);
+    curr_download_location = path_init(location->str);
+    folder_name = path_get_curr(dir);
 
-    dynamic_str_cat(curr_download_location, "/");
-    dynamic_str_cat(curr_download_location, folder_name);
+    path_go_into(curr_download_location, folder_name);
 
     free(folder_name);
 
@@ -421,47 +365,45 @@ int download_directory(sftp_session session, char* dir, const char* location)
         return SSH_ERROR;
     }
 
-    curr_downloading = dynamic_str_init(dir);
-
-    list = directory_ls_sftp(session, dir);
+    list = directory_ls_sftp(session, dir->str);
     if(list == NULL)
     {
-        dynamic_str_free(curr_download_location);
-        dynamic_str_free(curr_downloading);
+        path_free(curr_download_location);
         return SSH_OK;
     }
 
+    curr_downloading = path_init(dir->str);
     node = list->head;
     while(node != NULL)
     {
-        dynamic_str_cat(curr_downloading, "/");
-        dynamic_str_cat(curr_downloading, node->data->name);
+        path_go_into(curr_downloading, node->data->name);
+
         if(node->data->type == SSH_FILEXFER_TYPE_REGULAR)
         {
-            download_file(session, curr_downloading->str, curr_download_location->str, node->data);
+            download_file(session, curr_downloading, curr_download_location, node->data);
         } else if(node->data->type == SSH_FILEXFER_TYPE_DIRECTORY)
         {
-            download_directory(session, curr_downloading->str, curr_download_location->str);
+            download_directory(session, curr_downloading, curr_download_location);
         } else
         {
             printf("donwnload not supported for %s\n", node->data->name);
         }
-        dynamic_str_remove(curr_downloading, curr_downloading->size - strlen(node->data->name) - 2);
+        path_prev(curr_downloading);
 
         node = node->next;
     }
 
     attr_list_free(list);
-    dynamic_str_free(curr_download_location);
-    dynamic_str_free(curr_downloading);
+    path_free(curr_download_location);
+    path_free(curr_downloading);
     return SSH_OK;
 }
 
-int download_file(sftp_session session, char* file, const char* location, sftp_attributes attr)
+int download_file(sftp_session session, Path file, Path location, sftp_attributes attr)
 {
     sftp_file file_sftp;
     char buffer[DOWNLOAD_CHUNK_SIZE];
-    char* download_file;
+    Path download_file;
     char* file_name;
     char* readable_size;
     char* readable_written;
@@ -469,7 +411,7 @@ int download_file(sftp_session session, char* file, const char* location, sftp_a
     ssize_t nbytes;
     unsigned long long total_written = 0;
 
-    file_sftp = sftp_open(session, file, O_RDONLY, 0);
+    file_sftp = sftp_open(session, file->str, O_RDONLY, 0);
     if(file_sftp == NULL)
     {
         fprintf(stderr, "could not open file\n");
@@ -477,21 +419,19 @@ int download_file(sftp_session session, char* file, const char* location, sftp_a
     }
 
     // TODO write better code
-    file_name = get_filename_from_path(file);
-    download_file = (char*)malloc(sizeof(char) * (strlen(location) + strlen(file_name) + 2));
-    strcpy(download_file, location);
-    strcat(download_file, "/");
-    strcat(download_file, file_name);
-    printf("%s\n", download_file);
+    file_name = path_get_curr(file);
+    download_file = path_init(location->str);
+    path_go_into(download_file, file_name);
 
-    fp = fopen(download_file, "w");
+    fp = fopen(download_file->str, "w");
     if(fp == NULL)
     {
-        fprintf(stderr, "Failed to open file at %s\n", download_file);
+        free(file_name);
+        fprintf(stderr, "Failed to open file at %s\n", download_file->str);
         return SSH_ERROR;
     }
     // no longer needed
-    free(download_file);
+    path_free(download_file);
 
     readable_size = get_readable_size(attr->size);
 
@@ -647,7 +587,7 @@ int easy_navigate_mode(ssh_session session)
 int easy_navigate_mode_sftp(ssh_session session)
 {
     char buffer[BUFFER_SIZE];
-    DynamicStr pwd;
+    Path pwd;
     AttrList list;
     AttrNode node;
     int quit = 0;
@@ -659,7 +599,7 @@ int easy_navigate_mode_sftp(ssh_session session)
     }
 
     // set the present working direcrory as initial working directory
-    pwd = dynamic_str_init(INITIAL_WORKING_DIRECTORY);
+    pwd = path_init(INITIAL_WORKING_DIRECTORY);
     if(pwd == NULL)
     {
         sftp_free(sftp);
@@ -673,7 +613,7 @@ int easy_navigate_mode_sftp(ssh_session session)
         list = directory_ls_sftp(sftp, pwd->str);
         if(list == NULL)
         {
-            dynamic_str_free(pwd);
+            path_free(pwd);
             sftp_free(sftp);
             return SSH_ERROR;
         }
@@ -705,7 +645,7 @@ int easy_navigate_mode_sftp(ssh_session session)
 
             if(num == 0)
             {
-                go_to_top_directory(pwd);
+                path_prev(pwd);
                 continue;
             }
 
@@ -737,7 +677,7 @@ int easy_navigate_mode_sftp(ssh_session session)
     }
 
     attr_list_free(list);
-    dynamic_str_free(pwd);
+    path_free(pwd);
     sftp_free(sftp);
     return SSH_OK;
 }
@@ -799,25 +739,6 @@ char* get_file_type_color(int type)
     default:
         return FILE_TYPE_UNKNOWN_COLOR;
     }
-}
-
-/**
- * returns the name of the file based on the path name.
- * must be used with free to deallocate the returned pointer.
- */
-static char* get_filename_from_path(char* path)
-{
-    char* filename;
-    int i = strlen(path) - 1;
-
-    while(i > 0 && path[i] != '/')
-        i--;
-
-    filename = (char*)malloc(sizeof(char) * (strlen(path) - i));
-
-    strcpy(filename, path + i + 1);
-
-    return filename;
 }
 
 int create_directory(char* path)

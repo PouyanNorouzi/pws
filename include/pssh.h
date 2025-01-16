@@ -6,6 +6,7 @@
 #define PSSH_H
 #include "attr_list.h"
 #include "dynamic_str.h"
+#include "path.h"
 #include <stdio.h>
 #include <libssh/libssh.h>
 #include <libssh/sftp.h>
@@ -20,6 +21,9 @@
 
 #define MAX_DIRECTORY_LENGTH 256
 #define INITIAL_WORKING_DIRECTORY "/media/ssd"
+
+#define DEFAULT_DOWNLOAD_LOCATION "/home/batmanpouknight/Downloads"
+
 
 #define FILE_TYPE_REGULAR_STR "regular"
 #define FILE_TYPE_DIRECTORY_STR "directory"
@@ -44,17 +48,13 @@ sftp_session create_sftp_session(ssh_session session);
 
 AttrList directory_ls_sftp(sftp_session session_sftp, const char* directory_name);
 
-int go_to_top_directory(DynamicStr pwd);
+int handle_file_sftp(sftp_session session, Path pwd, AttrNode node);
 
-int cd_sftp(DynamicStr pwd, AttrNode node);
+int handle_directory_sftp(sftp_session session, Path pwd, AttrNode node);
 
-int handle_file_sftp(sftp_session session, DynamicStr pwd, AttrNode node);
+int download_directory(sftp_session session, Path dir, Path location);
 
-int handle_directory_sftp(sftp_session session, DynamicStr pwd, AttrNode node);
-
-int download_directory(sftp_session session, char* dir, const char* location);
-
-int download_file(sftp_session session, char* file, const char* location, sftp_attributes attr);
+int download_file(sftp_session session, Path file, Path location, sftp_attributes attr);
 
 int request_interactive_shell(ssh_channel channel);
 
@@ -73,8 +73,6 @@ char* pfgets(char* string, int size);
 char* get_file_type_str(int type);
 
 char* get_file_type_color(int type);
-
-static char* get_filename_from_path(char* path);
 
 int create_directory(char* path);
 
