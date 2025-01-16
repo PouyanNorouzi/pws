@@ -31,7 +31,7 @@ DynamicStr dynamic_str_init(const char* str)
     return new_str;
 }
 
-int dynamic_str_cat(DynamicStr dest, char* src)
+int dynamic_str_cat(DynamicStr dest, const char* src)
 {
     if(dest == NULL || src == NULL)
     {

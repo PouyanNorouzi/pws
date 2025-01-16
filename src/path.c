@@ -6,8 +6,10 @@
 #ifndef _WIN32
 #include <sys/stat.h>
 #else
-// Winodws stuff
+#include <direct.h>
 #endif
+
+const char* SEPERATOR[] = { "\\", "/" };
 
 Path path_init(const char* path, enum platform platform)
 {
@@ -30,6 +32,7 @@ int path_prev(Path path)
 {
     DynamicStr pathstr = path->path;
     int i = path->path->size;
+    const char* seperator = SEPERATOR[path->platform];
 
     if(path == NULL || i == 1)
     {
@@ -37,14 +40,14 @@ int path_prev(Path path)
         return PATH_ERROR;
     }
 
-    if(strcmp(pathstr->str, "/") == 0)
+    if(strcmp(pathstr->str, seperator) == 0)
     {
         fprintf(stderr, "cannot move to before the root directory");
         return PATH_ERROR;
     }
 
     i--;
-    while(i > 0 && pathstr->str[i] != '/')
+    while(i > 0 && pathstr->str[i] != seperator[0])
         i--;
 
     i = (i == 0) ? 1 : i;
@@ -58,6 +61,7 @@ int path_go_into(Path path, char* s)
 {
     DynamicStr pathstr;
     int rc;
+    const char* seperator = SEPERATOR[path->platform];
 
     if(path == NULL || s == NULL)
     {
@@ -70,7 +74,7 @@ int path_go_into(Path path, char* s)
     // if the array is just '/' and '\0' we are at root directory
     if(pathstr->size != 2)
     {
-        rc = dynamic_str_cat(pathstr, "/");
+        rc = dynamic_str_cat(pathstr, seperator);
         if(rc != DYNAMIC_STR_OK)
         {
             fprintf(stderr, "error concaconating pwd\n");
@@ -93,9 +97,10 @@ char* path_get_curr(Path path)
     char* filename;
     DynamicStr pathstr = path->path;
     int i;
+    const char* seperator = SEPERATOR[path->platform];
 
     i = strlen(pathstr->str) - 1;
-    while(i > 0 && pathstr->str[i] != '/')
+    while(i > 0 && pathstr->str[i] != seperator[0])
         i--;
 
     filename = (char*)malloc(sizeof(char) * (strlen(pathstr->str) - i));
@@ -118,7 +123,7 @@ Path path_get_downloads_directory(void)
 int path_create_directory(Path path)
 {
 #ifdef _WIN32
-    // complete the code for windows
+    return _mkdir(path->path->str);
 #else
     return mkdir(path->path->str, 0775);
 #endif

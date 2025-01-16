@@ -13,7 +13,7 @@
 
 #define BUFFER_SIZE 256
 
-#define DOWNLOAD_CHUNK_SIZE 65536
+#define DOWNLOAD_CHUNK_SIZE 32768
 
 #define BYTES_IN_KB 1024
 #define BYTES_IN_MB (1024 * 1024)
@@ -21,8 +21,6 @@
 
 #define MAX_DIRECTORY_LENGTH 256
 #define INITIAL_WORKING_DIRECTORY "/media/ssd"
-
-#define DEFAULT_DOWNLOAD_LOCATION "/home/batmanpouknight/Downloads"
 
 
 #define FILE_TYPE_REGULAR_STR "regular"

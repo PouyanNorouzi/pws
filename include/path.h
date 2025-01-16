@@ -10,8 +10,11 @@
 #ifndef _WIN32
 #define HOME_DIRECTORY (getenv("HOME"))
 #define CURR_PLATFORM PLATFORM_LINUX
+#define PATH_SEPERATOR "/"
 #else
-//Windows code
+#define HOME_DIRECTORY (getenv("USERPROFILE"))
+#define CURR_PLATFORM PLATFORM_WINDOWS
+#define PATH_SEPERATOR "\\"
 #endif
 
 enum platform {

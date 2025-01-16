@@ -9,7 +9,7 @@
  */
 int main(void)
 {
-    int verbosity = SSH_LOG_NONE;
+    int verbosity = SSH_LOG_DEBUG;
     int port = 22;
     char* user = "remoteuser";
     char* host;
