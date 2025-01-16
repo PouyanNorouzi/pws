@@ -13,7 +13,7 @@
 
 #define BUFFER_SIZE 256
 
-#define DOWNLOAD_CHUNK_SIZE 32768
+#define DOWNLOAD_CHUNK_SIZE 65536
 
 #define BYTES_IN_KB 1024
 #define BYTES_IN_MB (1024 * 1024)
@@ -46,7 +46,7 @@ ssh_channel create_channel_with_open_session(ssh_session session);
 
 sftp_session create_sftp_session(ssh_session session);
 
-AttrList directory_ls_sftp(sftp_session session_sftp, const char* directory_name);
+AttrList directory_ls_sftp(sftp_session session_sftp, Path path);
 
 int handle_file_sftp(sftp_session session, Path pwd, AttrNode node);
 
@@ -73,8 +73,6 @@ char* pfgets(char* string, int size);
 char* get_file_type_str(int type);
 
 char* get_file_type_color(int type);
-
-int create_directory(char* path);
 
 char* get_readable_size(size_t size);
 

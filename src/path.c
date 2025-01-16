@@ -3,15 +3,33 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#ifndef _WIN32
+#include <sys/stat.h>
+#else
+// Winodws stuff
+#endif
 
-Path path_init(const char* path)
+Path path_init(const char* path, enum platform platform)
 {
-    return dynamic_str_init(path);
+    Path new_path;
+
+    new_path = (Path)malloc(sizeof(struct path));
+
+    new_path->path = dynamic_str_init(path);
+    new_path->platform = platform;
+
+    return new_path;
+}
+
+Path path_duplicate(Path path)
+{
+    return path_init(path->path->str, path->platform);
 }
 
 int path_prev(Path path)
 {
-    int i = path->size;
+    DynamicStr pathstr = path->path;
+    int i = path->path->size;
 
     if(path == NULL || i == 1)
     {
@@ -19,25 +37,26 @@ int path_prev(Path path)
         return PATH_ERROR;
     }
 
-    if(strcmp(path->str, "/") == 0)
+    if(strcmp(pathstr->str, "/") == 0)
     {
         fprintf(stderr, "cannot move to before the root directory");
         return PATH_ERROR;
     }
 
     i--;
-    while(i > 0 && path->str[i] != '/')
+    while(i > 0 && pathstr->str[i] != '/')
         i--;
 
     i = (i == 0) ? 1 : i;
 
-    dynamic_str_remove(path, i);
+    dynamic_str_remove(pathstr, i);
 
     return PATH_OK;
 }
 
 int path_go_into(Path path, char* s)
 {
+    DynamicStr pathstr;
     int rc;
 
     if(path == NULL || s == NULL)
@@ -46,10 +65,12 @@ int path_go_into(Path path, char* s)
         return PATH_ERROR;
     }
 
+    pathstr = path->path;
+
     // if the array is just '/' and '\0' we are at root directory
-    if(path->size != 2)
+    if(pathstr->size != 2)
     {
-        rc = dynamic_str_cat(path, "/");
+        rc = dynamic_str_cat(pathstr, "/");
         if(rc != DYNAMIC_STR_OK)
         {
             fprintf(stderr, "error concaconating pwd\n");
@@ -57,7 +78,7 @@ int path_go_into(Path path, char* s)
         }
     }
 
-    rc = dynamic_str_cat(path, s);
+    rc = dynamic_str_cat(pathstr, s);
     if(rc != DYNAMIC_STR_OK)
     {
         fprintf(stderr, "error concaconating pwd\n");
@@ -70,19 +91,42 @@ int path_go_into(Path path, char* s)
 char* path_get_curr(Path path)
 {
     char* filename;
-    int i = strlen(path->str) - 1;
+    DynamicStr pathstr = path->path;
+    int i;
 
-    while(i > 0 && path->str[i] != '/')
+    i = strlen(pathstr->str) - 1;
+    while(i > 0 && pathstr->str[i] != '/')
         i--;
 
-    filename = (char*)malloc(sizeof(char) * (strlen(path->str) - i));
+    filename = (char*)malloc(sizeof(char) * (strlen(pathstr->str) - i));
 
-    strcpy(filename, path->str + i + 1);
+    strcpy(filename, pathstr->str + i + 1);
 
     return filename;
 }
 
+Path path_get_downloads_directory(void)
+{
+    Path new_path;
+
+    new_path = path_init(HOME_DIRECTORY, CURR_PLATFORM);
+    path_go_into(new_path, "Downloads");
+
+    return new_path;
+}
+
+int path_create_directory(Path path)
+{
+#ifdef _WIN32
+    // complete the code for windows
+#else
+    return mkdir(path->path->str, 0775);
+#endif
+}
+
 int path_free(Path path)
 {
-    return dynamic_str_free(path);
+    dynamic_str_free(path->path);
+    free(path);
+    return PATH_OK;
 }

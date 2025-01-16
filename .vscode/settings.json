@@ -13,6 +13,24 @@
         "stat.h": "c",
         "fcntl.h": "c",
         "path.h": "c",
-        "pssh.h": "c"
+        "pssh.h": "c",
+        "array": "c",
+        "bitset": "c",
+        "string_view": "c",
+        "initializer_list": "c",
+        "span": "c",
+        "format": "c",
+        "__hash_table": "c",
+        "__split_buffer": "c",
+        "deque": "c",
+        "queue": "c",
+        "random": "c",
+        "string": "c",
+        "unordered_map": "c",
+        "utility": "c",
+        "vector": "c",
+        "dynamic_str.h": "c",
+        "stdlib.h": "c",
+        "time.h": "c"
     }
 }

@@ -15,7 +15,6 @@
 #include <time.h>
 #ifndef _WIN32
 #include <bsd/readpassphrase.h>
-#include <sys/stat.h>
 #else
 #include <conio.h>
 #endif
@@ -208,14 +207,17 @@ sftp_session create_sftp_session(ssh_session session)
 /**
  * Returns the provided directories content. Simmilar to running ls.
  */
-AttrList directory_ls_sftp(sftp_session session_sftp, const char* directory_name)
+AttrList directory_ls_sftp(sftp_session session_sftp, Path path)
 {
-    if(session_sftp == NULL || directory_name == NULL)
+    char* directory_name;
+
+    if(session_sftp == NULL || path == NULL)
     {
         fprintf(stdout, "sftp session and directory name cannot be empty\n");
         return NULL;
     }
 
+    directory_name = path->path->str;
     AttrList list = attr_list_initialize();
 
     sftp_dir directory = sftp_opendir(session_sftp, directory_name);
@@ -253,6 +255,7 @@ int handle_file_sftp(sftp_session session, Path pwd, AttrNode node)
     char buffer[BUFFER_SIZE];
     Path curr_dir;
     Path default_path;
+    char* pwdstr;
 
     if(pwd == NULL || node == NULL)
     {
@@ -260,18 +263,20 @@ int handle_file_sftp(sftp_session session, Path pwd, AttrNode node)
         return SSH_ERROR;
     }
 
+    pwdstr = pwd->path->str;
+
     if(node->data->type != SSH_FILEXFER_TYPE_REGULAR)
     {
-        fprintf(stderr, "%s/%s is not a regular file\n", pwd->str, node->data->name);
+        fprintf(stderr, "%s/%s is not a regular file\n", pwdstr, node->data->name);
         return SSH_ERROR;
     }
 
-    curr_dir = path_init(pwd->str);
+    curr_dir = path_init(pwdstr, PLATFORM_LINUX);
     path_go_into(curr_dir, node->data->name);
 
-    default_path = path_init(DEFAULT_DOWNLOAD_LOCATION);
+    default_path = path_get_downloads_directory();
 
-    printf("%s is a regular file what do you want to do?\n", pwd->str);
+    printf("%s is a regular file what do you want to do?\n", pwdstr);
     printf("1. Download the file\n");
     pfgets(buffer, BUFFER_SIZE);
 
@@ -294,6 +299,7 @@ int handle_directory_sftp(sftp_session session, Path pwd, AttrNode node)
 {
     Path curr_dir;
     Path default_path;
+    char* pwdstr;
     char buffer[BUFFER_SIZE];
 
     if(pwd == NULL || node == NULL)
@@ -302,19 +308,21 @@ int handle_directory_sftp(sftp_session session, Path pwd, AttrNode node)
         return SSH_ERROR;
     }
 
+    pwdstr = pwd->path->str;
+
     if(node->data->type != SSH_FILEXFER_TYPE_DIRECTORY)
     {
-        fprintf(stderr, "%s/%s is not a directory\n", pwd->str, node->data->name);
+        fprintf(stderr, "%s/%s is not a directory\n", pwdstr, node->data->name);
         return SSH_ERROR;
     }
 
 
-    curr_dir = path_init(pwd->str);
+    curr_dir = path_init(pwdstr, PLATFORM_LINUX);
     path_go_into(curr_dir, node->data->name);
 
-    default_path = path_init(DEFAULT_DOWNLOAD_LOCATION);
+    default_path = path_get_downloads_directory();
 
-    printf("%s is a directory what do you want to do?\n", pwd->str);
+    printf("%s is a directory what do you want to do?\n", pwdstr);
     printf("1. Download the directory recursively\n");
     printf("2. Go inside the directory\n");
     pfgets(buffer, BUFFER_SIZE);
@@ -351,28 +359,28 @@ int download_directory(sftp_session session, Path dir, Path location)
         return SSH_ERROR;
     }
 
-    curr_download_location = path_init(location->str);
+    curr_download_location = path_duplicate(location);
     folder_name = path_get_curr(dir);
 
     path_go_into(curr_download_location, folder_name);
 
     free(folder_name);
 
-    if(create_directory(curr_download_location->str) != 0)
+    if(path_create_directory(curr_download_location) != 0)
     {
-        fprintf(stderr, "Failed to create directory at %s\n", curr_download_location->str);
-        dynamic_str_free(curr_download_location);
+        fprintf(stderr, "Failed to create directory at %s\n", curr_download_location->path->str);
+        path_free(curr_download_location);
         return SSH_ERROR;
     }
 
-    list = directory_ls_sftp(session, dir->str);
+    list = directory_ls_sftp(session, dir);
     if(list == NULL)
     {
         path_free(curr_download_location);
         return SSH_OK;
     }
 
-    curr_downloading = path_init(dir->str);
+    curr_downloading = path_duplicate(dir);
     node = list->head;
     while(node != NULL)
     {
@@ -411,7 +419,7 @@ int download_file(sftp_session session, Path file, Path location, sftp_attribute
     ssize_t nbytes;
     unsigned long long total_written = 0;
 
-    file_sftp = sftp_open(session, file->str, O_RDONLY, 0);
+    file_sftp = sftp_open(session, file->path->str, O_RDONLY, 0);
     if(file_sftp == NULL)
     {
         fprintf(stderr, "could not open file\n");
@@ -420,14 +428,14 @@ int download_file(sftp_session session, Path file, Path location, sftp_attribute
 
     // TODO write better code
     file_name = path_get_curr(file);
-    download_file = path_init(location->str);
+    download_file = path_duplicate(location);
     path_go_into(download_file, file_name);
 
-    fp = fopen(download_file->str, "w");
+    fp = fopen(download_file->path->str, "w");
     if(fp == NULL)
     {
         free(file_name);
-        fprintf(stderr, "Failed to open file at %s\n", download_file->str);
+        fprintf(stderr, "Failed to open file at %s\n", download_file->path->str);
         return SSH_ERROR;
     }
     // no longer needed
@@ -599,7 +607,7 @@ int easy_navigate_mode_sftp(ssh_session session)
     }
 
     // set the present working direcrory as initial working directory
-    pwd = path_init(INITIAL_WORKING_DIRECTORY);
+    pwd = path_init(INITIAL_WORKING_DIRECTORY, PLATFORM_LINUX);
     if(pwd == NULL)
     {
         sftp_free(sftp);
@@ -608,9 +616,9 @@ int easy_navigate_mode_sftp(ssh_session session)
 
     while(!quit)
     {
-        printf("\nYou are now at \"%s\" directory\n", pwd->str);
+        printf("\nYou are now at \"%s\" directory\n", pwd->path->str);
 
-        list = directory_ls_sftp(sftp, pwd->str);
+        list = directory_ls_sftp(sftp, pwd);
         if(list == NULL)
         {
             path_free(pwd);
@@ -739,15 +747,6 @@ char* get_file_type_color(int type)
     default:
         return FILE_TYPE_UNKNOWN_COLOR;
     }
-}
-
-int create_directory(char* path)
-{
-#ifdef _WIN32
-    // complete the code for windows
-#else
-    return mkdir(path, 0775);
-#endif
 }
 
 char* get_readable_size(size_t size)
