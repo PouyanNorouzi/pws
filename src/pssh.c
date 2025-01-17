@@ -431,7 +431,7 @@ int download_file(sftp_session session, Path file, Path location, sftp_attribute
     download_file = path_duplicate(location);
     path_go_into(download_file, file_name);
 
-    fp = fopen(download_file->path->str, "w");
+    fp = fopen(download_file->path->str, "wb");
     if(fp == NULL)
     {
         free(file_name);
