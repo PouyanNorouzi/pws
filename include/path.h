@@ -2,28 +2,24 @@
 #define PATH_H
 
 #include <dynamic_str.h>
-#include <stdlib.h>
 
-#define PATH_OK 1
+#define PATH_OK    1
 #define PATH_ERROR 0
 
 #ifndef _WIN32
-#define HOME_DIRECTORY (getenv("HOME"))
-#define CURR_PLATFORM PLATFORM_LINUX
-#define PATH_SEPERATOR "/"
+#  define HOME_DIRECTORY (getenv("HOME"))
+#  define CURR_PLATFORM  PLATFORM_LINUX
+#  define PATH_SEPERATOR "/"
 #else
-#define HOME_DIRECTORY (getenv("USERPROFILE"))
-#define CURR_PLATFORM PLATFORM_WINDOWS
-#define PATH_SEPERATOR "\\"
+#  define HOME_DIRECTORY (getenv("USERPROFILE"))
+#  define CURR_PLATFORM  PLATFORM_WINDOWS
+#  define PATH_SEPERATOR "\\"
 #endif
 
-enum platform {
-    PLATFORM_WINDOWS,
-    PLATFORM_LINUX
-};
+enum platform { PLATFORM_WINDOWS, PLATFORM_LINUX };
 
 struct path {
-    DynamicStr path;
+    DynamicStr    path;
     enum platform platform;
 };
 
@@ -45,4 +41,4 @@ int path_create_directory(Path path);
 
 int path_free(Path path);
 
-#endif // PATH_H
+#endif  // PATH_H
