@@ -1,3 +1,5 @@
+#include "main.h"
+
 #include <libssh/libssh.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -66,14 +68,27 @@ int main(void) {
         if(strcmp(buffer, "1") == 0) {
             terminal_session(session);
         } else if(strcmp(buffer, "2") == 0) {
-            easy_navigate_mode(session);
+            upload_mode(session);
         } else if(strcmp(buffer, "3") == 0) {
             easy_navigate_mode_sftp(session);
         }
-    } while(strcmp(buffer, "quit") != 0 && strcmp(buffer, "0") != 0);
+
+    } while(buffer[0] != 'q' && buffer[0] != '0');
 
     ssh_disconnect(session);
     ssh_free(session);
     free(host);
     return 0;
+}
+
+/**
+ * Print the home menu that allows the user to open a new terminal session
+ */
+void print_home_menu(void) {
+    puts(
+        "You are at home menu type in the number of the action you want to do "
+        "(0 or quit to quit)");
+    puts("1. open new terminal session(does not work)");
+    puts("2. upload mode");
+    puts("3. easy navigate mode sftp");
 }

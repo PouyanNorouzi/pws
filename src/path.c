@@ -1,13 +1,15 @@
 #include "path.h"
 
+#include <dirent.h>
+#include <errno.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 
 #include "dynamic_str.h"
-#ifndef _WIN32
-#  include <sys/stat.h>
-#else
+#ifdef _WIN32
 #  include <direct.h>
 #endif
 
@@ -17,8 +19,18 @@ Path path_init(const char* path, enum platform platform) {
     Path new_path;
 
     new_path = (Path)malloc(sizeof(struct path));
+    if(new_path == NULL) {
+        fprintf(stderr, "failed to allocate memory for new path\n");
+        return NULL;
+    }
 
-    new_path->path     = dynamic_str_init(path);
+    new_path->path = dynamic_str_init(path);
+    if(new_path->path == NULL) {
+        fprintf(stderr, "failed to initialize dynamic string\n");
+        free(new_path);
+        return NULL;
+    }
+
     new_path->platform = platform;
 
     return new_path;
@@ -29,14 +41,17 @@ Path path_duplicate(Path path) {
 }
 
 int path_prev(Path path) {
-    DynamicStr  pathstr   = path->path;
-    int         i         = path->path->size;
+    DynamicStr  pathstr;
+    int         i;
     const char* seperator = SEPERATOR[path->platform];
 
-    if(path == NULL || i == 1) {
+    if(path == NULL || path->path->size == 1) {
         fprintf(stderr, "pwd cannot be null or empty\n");
         return PATH_ERROR;
     }
+
+    i       = path->path->size;
+    pathstr = path->path;
 
     if(strcmp(pathstr->str, seperator) == 0) {
         fprintf(stderr, "cannot move to before the root directory");
@@ -111,6 +126,58 @@ Path path_get_downloads_directory(void) {
 
     return new_path;
 }
+
+unsigned long long path_get_file_size(Path path) {
+    struct stat path_stat;
+    int         rc;
+
+    rc = stat(path->path->str, &path_stat);
+    if(rc != 0) {
+        fprintf(stderr, "failed to get the stat of the path: %d\n", errno);
+        return 0;
+    }
+
+    if(!S_ISREG(path_stat.st_mode)) {
+        fprintf(stderr, "the path is not a regular file\n");
+        return 0;
+    }
+
+    return (unsigned long long)path_stat.st_size;
+}
+
+bool path_is_directory(Path path) {
+    struct stat path_stat;
+    int         rc;
+
+    rc = stat(path->path->str, &path_stat);
+    if(rc != 0) {
+        fprintf(stderr, "failed to get the statof the path: %d\n", errno);
+        return false;
+    }
+
+    if(S_ISDIR(path_stat.st_mode)) {
+        return true;
+    }
+    return false;
+}
+
+bool path_is_file(Path path) {
+    struct stat path_stat;
+    int         rc;
+
+    rc = stat(path->path->str, &path_stat);
+    if(rc != 0) {
+        fprintf(stderr, "failed to get the statof the path: %d\n", errno);
+        return false;
+    }
+
+    if(S_ISREG(path_stat.st_mode)) {
+        return true;
+    }
+    return false;
+}
+
+DIR* path_opendir(Path path) { return opendir(path->path->str); }
 
 int path_create_directory(Path path) {
 #ifdef _WIN32

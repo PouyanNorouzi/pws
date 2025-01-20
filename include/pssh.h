@@ -13,13 +13,14 @@
 
 #define BUFFER_SIZE 256
 
-#define DOWNLOAD_CHUNK_SIZE 32768
+#define CHUNK_SIZE 32768
 
 #define BYTES_IN_KB 1024
 #define BYTES_IN_MB (1024 * 1024)
 #define BYTES_IN_GB (1024 * 1024 * 1024)
 
-#define MAX_DIRECTORY_LENGTH      256
+#define MAX_DIRECTORY_LENGTH 256
+
 #define INITIAL_WORKING_DIRECTORY "/media/ssd"
 
 #define FILE_TYPE_REGULAR_STR   "regular"
@@ -55,17 +56,19 @@ int download_file(sftp_session    session,
                   Path            location,
                   sftp_attributes attr);
 
+int upload_directory(sftp_session session, Path from, Path to);
+
+int upload_file(sftp_session session, Path from, Path to_directory);
+
 int request_interactive_shell(ssh_channel channel);
 
 int execute_command_on_shell(ssh_channel channel, char* command);
 
-void print_home_menu(void);
-
 int terminal_session(ssh_session session);
 
-int easy_navigate_mode(ssh_session session);
-
 int easy_navigate_mode_sftp(ssh_session session);
+
+int upload_mode(ssh_session session);
 
 char* pfgets(char* string, int size);
 

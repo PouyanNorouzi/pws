@@ -16,7 +16,7 @@ DynamicStr dynamic_str_init(const char* str) {
         return NULL;
     }
 
-    new_str->str = (char*)malloc(sizeof(char) * (strlen(str) + 1));
+    new_str->str = strdup(str);
     if(new_str->str == NULL) {
         fprintf(
             stderr,
@@ -24,7 +24,6 @@ DynamicStr dynamic_str_init(const char* str) {
         free(new_str);
         return NULL;
     }
-    strcpy(new_str->str, str);
     new_str->size = strlen(str) + 1;
 
     return new_str;

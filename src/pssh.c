@@ -4,9 +4,11 @@
 
 #include "pssh.h"
 
+#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <libssh/libssh.h>
+#include <libssh/sftp.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -28,12 +30,12 @@
  */
 int verify_knownhost(ssh_session session) {
     enum ssh_known_hosts_e state;
-    unsigned char         *hash       = NULL;
+    unsigned char*         hash       = NULL;
     ssh_key                srv_pubkey = NULL;
     size_t                 hlen;
     char                   buf[10];
-    char                  *hexa;
-    char                  *p;
+    char*                  hexa;
+    char*                  p;
     int                    cmp;
     int                    rc;
 
@@ -134,7 +136,7 @@ int pauthenticate(ssh_session session) {
             printf("%s\n", instruction);
         }
         for(iprompt = 0; iprompt < nprompts; iprompt++) {
-            const char *prompt;
+            const char* prompt;
             char        echo;
 
             prompt = ssh_userauth_kbdint_getprompt(session, iprompt, &echo);
@@ -210,7 +212,7 @@ sftp_session create_sftp_session(ssh_session session) {
  * Returns the provided directories content. Simmilar to running ls.
  */
 AttrList directory_ls_sftp(sftp_session session_sftp, Path path) {
-    char *directory_name;
+    char* directory_name;
 
     if(session_sftp == NULL || path == NULL) {
         fprintf(stdout, "sftp session and directory name cannot be empty\n");
@@ -254,7 +256,7 @@ int handle_file_sftp(sftp_session session, Path pwd, AttrNode node) {
     char  buffer[BUFFER_SIZE];
     Path  curr_dir;
     Path  default_path;
-    char *pwdstr;
+    char* pwdstr;
 
     if(pwd == NULL || node == NULL) {
         fprintf(stderr, "pwd or node cannot be empty\n");
@@ -296,7 +298,7 @@ int handle_file_sftp(sftp_session session, Path pwd, AttrNode node) {
 int handle_directory_sftp(sftp_session session, Path pwd, AttrNode node) {
     Path  curr_dir;
     Path  default_path;
-    char *pwdstr;
+    char* pwdstr;
     char  buffer[BUFFER_SIZE];
 
     if(pwd == NULL || node == NULL) {
@@ -337,7 +339,7 @@ int download_directory(sftp_session session, Path dir, Path location) {
     AttrNode node;
     Path     curr_download_location;
     Path     curr_downloading;
-    char    *folder_name;
+    char*    folder_name;
 
     if(session == NULL || dir == NULL) {
         fprintf(stderr, "session and dir path cannot be null\n");
@@ -398,12 +400,12 @@ int download_file(sftp_session    session,
                   Path            location,
                   sftp_attributes attr) {
     sftp_file          file_sftp;
-    char               buffer[DOWNLOAD_CHUNK_SIZE];
+    char               buffer[CHUNK_SIZE];
     Path               download_file;
-    char              *file_name;
-    char              *readable_size;
-    char              *readable_written;
-    FILE              *fp;
+    char*              file_name;
+    char*              readable_size;
+    char*              readable_written;
+    FILE*              fp;
     ssize_t            nbytes;
     unsigned long long total_written = 0;
 
@@ -417,6 +419,7 @@ int download_file(sftp_session    session,
     download_file = path_duplicate(location);
     path_go_into(download_file, file_name);
 
+    // TODO: CHECK IF THE FILE ALREADY EXISTS AND PROMPT FOR OVERRIDE
     fp = fopen(download_file->path->str, "wb");
     if(fp == NULL) {
         free(file_name);
@@ -432,7 +435,7 @@ int download_file(sftp_session    session,
 
     time_t last_report  = time(NULL);
     time_t current_time = last_report;
-    while((nbytes = sftp_read(file_sftp, buffer, DOWNLOAD_CHUNK_SIZE)) != 0) {
+    while((nbytes = sftp_read(file_sftp, buffer, CHUNK_SIZE)) != 0) {
         if(nbytes < 0) {
             fprintf(stderr, "Error while reading from the file\n");
             fclose(fp);
@@ -455,7 +458,7 @@ int download_file(sftp_session    session,
         current_time = time(NULL);
         if(current_time > last_report) {
             readable_written = get_readable_size(total_written);
-            printf("\r[%s] wrote %s of %s\n",
+            printf("\r[%s] wrote %s of %s",
                    file_name,
                    readable_written,
                    readable_size);
@@ -469,6 +472,209 @@ int download_file(sftp_session    session,
     free(readable_size);
     free(file_name);
     sftp_close(file_sftp);
+    return SSH_OK;
+}
+
+int upload_directory(sftp_session session, Path from, Path to) {
+    Path  to_directory;
+    char* dir_name;
+    int   rc;
+    DIR*  local_dir;
+    Path  curr_path;
+
+    struct dirent* attr;
+
+    if(session == NULL || from == NULL || to == NULL) {
+        fprintf(stderr, "cannot pass null values to upload_file function\n");
+        return SSH_ERROR;
+    }
+
+    dir_name = path_get_curr(from);
+    if(dir_name == NULL) {
+        fprintf(stderr, "Failed to get current file name from path\n");
+        return SSH_ERROR;
+    }
+
+    to_directory = path_duplicate(to);
+    if(to_directory == NULL) {
+        fprintf(stderr, "Failed to duplicate path\n");
+        free(dir_name);
+        return SSH_ERROR;
+    }
+
+    rc = path_go_into(to_directory, dir_name);
+    if(rc != PATH_OK) {
+        fprintf(stderr, "Failed to go into path\n");
+        free(dir_name);
+        path_free(to_directory);
+        return SSH_ERROR;
+    }
+
+    rc = sftp_mkdir(session, to_directory->path->str, S_IRWXU | S_IRWXG);
+    if(rc != SSH_OK) {
+        fprintf(stderr,
+                "Failed to create remote directory: %d\n",
+                sftp_get_error(session));
+        path_free(to_directory);
+        free(dir_name);
+        return SSH_ERROR;
+    }
+
+    local_dir = path_opendir(from);
+    if(local_dir == NULL) {
+        fprintf(stderr,
+                "Failed to open local directory: %s\n",
+                from->path->str);
+        path_free(to_directory);
+        free(dir_name);
+        return SSH_ERROR;
+    }
+
+    curr_path = path_duplicate(from);
+
+    errno = 0;
+    while((attr = readdir(local_dir)) != NULL) {
+        if(attr->d_name[0] == '.') continue;
+
+        path_go_into(curr_path, attr->d_name);
+        puts(curr_path->path->str);
+        // TODO: BETTER ERROR HANDLING
+        if(attr->d_type == DT_DIR) {
+            upload_directory(session, curr_path, to_directory);
+        } else if(attr->d_type == DT_REG) {
+            upload_file(session, curr_path, to_directory);
+        } else {
+            fprintf(stderr,
+                    "cannot print the path %s skipping\n",
+                    curr_path->path->str);
+        }
+        path_prev(curr_path);
+    }
+
+    if(errno != 0) {
+        fprintf(stderr, "error reading the folder %d\n", errno);
+        closedir(local_dir);
+        path_free(to_directory);
+        free(dir_name);
+        return SSH_ERROR;
+    }
+
+    path_free(curr_path);
+    closedir(local_dir);
+    path_free(to_directory);
+    free(dir_name);
+    return SSH_OK;
+}
+
+int upload_file(sftp_session session, Path from, Path to_directory) {
+    Path      to_file;
+    char*     file_name;
+    char*     readable_written;
+    char*     readable_size;
+    char      chunk[CHUNK_SIZE];
+    int       rc;
+    sftp_file remote_file;
+    FILE*     local_file;
+    size_t    nbytes;
+
+    if(session == NULL || from == NULL || to_directory == NULL) {
+        fprintf(stderr, "cannot pass null values to upload_file function\n");
+        return SSH_ERROR;
+    }
+
+    file_name = path_get_curr(from);
+    if(file_name == NULL) {
+        fprintf(stderr, "Failed to get current file name from path\n");
+        return SSH_ERROR;
+    }
+
+    to_file = path_duplicate(to_directory);
+    if(to_file == NULL) {
+        fprintf(stderr, "Failed to duplicate path\n");
+        free(file_name);
+        return SSH_ERROR;
+    }
+
+    rc = path_go_into(to_file, file_name);
+    if(rc != PATH_OK) {
+        fprintf(stderr, "Failed to go into path\n");
+        free(file_name);
+        path_free(to_file);
+        return SSH_ERROR;
+    }
+
+    // TODO: MAKE IT SO THAT USER GETS THE OPTION TO OVERIDE IF EXISTS
+    remote_file = sftp_open(session,
+                            to_file->path->str,
+                            O_WRONLY | O_CREAT | O_EXCL,
+                            S_IRWXU | S_IRWXG);
+    if(remote_file == NULL) {
+        fprintf(stderr,
+                "Failed to open remote file for writing: %s\n",
+                ssh_get_error(session));
+        path_free(to_file);
+        free(file_name);
+        return SSH_ERROR;
+    }
+
+    local_file = fopen(from->path->str, "rb");
+    if(local_file == NULL) {
+        fprintf(stderr,
+                "Failed to open local file for reading: %s\n",
+                from->path->str);
+        sftp_close(remote_file);
+        path_free(to_file);
+        free(file_name);
+        return SSH_ERROR;
+    }
+
+    unsigned long long total_written = 0;
+    unsigned long long total_size    = path_get_file_size(from);
+
+    readable_size = get_readable_size(total_size);
+
+    time_t last_report  = time(NULL);
+    time_t current_time = last_report;
+    while((nbytes = fread(chunk, sizeof(char), CHUNK_SIZE, local_file)) != 0) {
+        if(sftp_write(remote_file, chunk, nbytes) != (ssize_t)nbytes) {
+            fprintf(stderr,
+                    "Error writing to remote file: %d\n",
+                    sftp_get_error(session));
+            fclose(local_file);
+            sftp_close(remote_file);
+            path_free(to_file);
+            free(file_name);
+            return SSH_ERROR;
+        }
+        total_written += nbytes;
+
+        current_time = time(NULL);
+        if(current_time > last_report) {
+            readable_written = get_readable_size(total_written);
+            printf("\r[%s] wrote %s of %s",
+                   file_name,
+                   readable_written,
+                   readable_size);
+            fflush(stdout);
+            last_report = time(NULL);
+            free(readable_written);
+        }
+    }
+    printf("\n");
+
+    if(ferror(local_file)) {
+        fprintf(stderr, "Error reading from local file: %s\n", from->path->str);
+        fclose(local_file);
+        sftp_close(remote_file);
+        path_free(to_file);
+        free(file_name);
+        return SSH_ERROR;
+    }
+
+    fclose(local_file);
+    sftp_close(remote_file);
+    path_free(to_file);
+    free(file_name);
     return SSH_OK;
 }
 
@@ -494,7 +700,7 @@ int request_interactive_shell(ssh_channel channel) {
 /**
  * Executes a command and writes output to stdout.
  */
-int execute_command_on_shell(ssh_channel channel, char *command) {
+int execute_command_on_shell(ssh_channel channel, char* command) {
     char buffer[BUFFER_SIZE];
     int  nbytes;
     char command_with_nextline[strlen(command) + 1];
@@ -528,63 +734,10 @@ int execute_command_on_shell(ssh_channel channel, char *command) {
     return 0;
 }
 
-/**
- * Print the home menu that allows the user to open a new terminal session
- */
-void print_home_menu(void) {
-    puts(
-        "You are at home menu type in the number of the action you want to do "
-        "(0 or quit to quit)");
-    puts("1. open new terminal session(does not work)");
-    puts("2. easy navigate mode(neither does this)");
-    puts("3. easy navigate mode sftp");
-}
-
 int terminal_session(ssh_session session) {
     (void)session;
     puts("Not available yet");
     return 0;
-}
-
-int easy_navigate_mode(ssh_session session) {
-    ssh_channel channel = create_channel_with_open_session(session);
-    if(channel == NULL) {
-        fprintf(stderr,
-                "Failed to open channel for the terminal %s\n",
-                ssh_get_error(session));
-        return SSH_ERROR;
-    }
-
-    if(request_interactive_shell(channel) != SSH_OK) {
-        fprintf(stderr, "Failed to request shell %s\n", ssh_get_error(session));
-        ssh_channel_close(channel);
-        ssh_channel_free(channel);
-        return SSH_ERROR;
-    }
-
-    // TODO: find a better way to do this in case the wait should be longer
-    // wait 1 second for the shell to start.
-    sleep(1);
-
-    // Empty the input
-    size_t nbytes;
-    char   buffer[BUFFER_SIZE];
-    while(
-        (nbytes =
-             ssh_channel_read_nonblocking(channel, buffer, sizeof(buffer), 0)) >
-        0) {
-        puts("Emptied");
-    }
-
-    if(execute_command_on_shell(channel, "ps aux") != SSH_OK) {
-        ssh_channel_close(channel);
-        ssh_channel_free(channel);
-        return SSH_ERROR;
-    }
-
-    ssh_channel_close(channel);
-    ssh_channel_free(channel);
-    return SSH_OK;
 }
 
 int easy_navigate_mode_sftp(ssh_session session) {
@@ -625,7 +778,7 @@ int easy_navigate_mode_sftp(ssh_session session) {
             quit = 1;
         } else {
             // convert input to number and detect errors
-            char *endptr;
+            char* endptr;
             long  num = strtol(buffer, &endptr, 10);
             if(endptr == buffer) {
                 printf("Invalid input, not a number\n");
@@ -672,7 +825,46 @@ int easy_navigate_mode_sftp(ssh_session session) {
     return SSH_OK;
 }
 
-char *pfgets(char *string, int size) {
+int upload_mode(ssh_session session) {
+    char buffer[BUFFER_SIZE];
+    Path uploaded;
+    Path destination;
+
+    if(session == NULL) {
+        fprintf(stderr, "Error: SSH session is NULL.\n");
+    }
+
+    sftp_session sftp = create_sftp_session(session);
+    if(sftp == NULL) {
+        fprintf(stderr, "Error creating SFTP session.\n");
+    }
+
+    // TODO: BETTER ERROR HANDLING
+    puts("enter the path of the file or directory you want to upload");
+    pfgets(buffer, BUFFER_SIZE);
+    uploaded = path_init(buffer, CURR_PLATFORM);
+
+    puts("enter the path of the directory you want this to be uploaded to");
+    pfgets(buffer, BUFFER_SIZE);
+    destination = path_init(buffer, PLATFORM_LINUX);
+
+    if(path_is_directory(uploaded)) {
+        upload_directory(sftp, uploaded, destination);
+    } else if(path_is_file(uploaded)) {
+        upload_file(sftp, uploaded, destination);
+    } else {
+        fprintf(stderr, "Error finding the file to be uploaded\n");
+        path_free(uploaded);
+        path_free(destination);
+        return SSH_ERROR;
+    }
+
+    path_free(uploaded);
+    path_free(destination);
+    return SSH_OK;
+}
+
+char* pfgets(char* string, int size) {
     size_t len;
 
     fgets(string, size, stdin);
@@ -687,7 +879,7 @@ char *pfgets(char *string, int size) {
 /**
  * Takes an integer and returns the corresponding static string of file type.
  */
-char *get_file_type_str(int type) {
+char* get_file_type_str(int type) {
     switch(type) {
         case SSH_FILEXFER_TYPE_REGULAR: return FILE_TYPE_REGULAR_STR;
 
@@ -701,7 +893,7 @@ char *get_file_type_str(int type) {
     }
 }
 
-char *get_file_type_color(int type) {
+char* get_file_type_color(int type) {
     switch(type) {
         case SSH_FILEXFER_TYPE_REGULAR: return FILE_TYPE_REGULAR_COLOR;
 
@@ -715,8 +907,8 @@ char *get_file_type_color(int type) {
     }
 }
 
-char *get_readable_size(size_t size) {
-    char *result;
+char* get_readable_size(size_t size) {
+    char* result;
     char  buffer[BUFFER_SIZE];
 
     if(size / BYTES_IN_KB == 0) {
@@ -729,8 +921,7 @@ char *get_readable_size(size_t size) {
         sprintf(buffer, "%.3fGB", (double)size / BYTES_IN_GB);
     }
 
-    result = (char *)malloc(strlen(buffer) + 1);
-    strcpy(result, buffer);
+    result = strdup(buffer);
 
     return result;
 }
@@ -739,7 +930,7 @@ char *get_readable_size(size_t size) {
 /**
  * gets the password from the user and does not echo it on the terminal.
  */
-char *readpassphrase(const char *prompt, char *buffer, int size, int flag) {
+char* readpassphrase(const char* prompt, char* buffer, int size, int flag) {
     if(prompt == NULL) {
         return NULL;
     }

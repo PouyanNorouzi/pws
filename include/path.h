@@ -1,7 +1,11 @@
 #ifndef PATH_H
 #define PATH_H
 
-#include <dynamic_str.h>
+#include <dirent.h>
+#include <stdbool.h>
+#include <sys/stat.h>
+
+#include "dynamic_str.h"
 
 #define PATH_OK    1
 #define PATH_ERROR 0
@@ -36,6 +40,14 @@ int path_go_into(Path path, char* s);
 char* path_get_curr(Path path);
 
 Path path_get_downloads_directory(void);
+
+unsigned long long path_get_file_size(Path path);
+
+bool path_is_directory(Path path);
+
+bool path_is_file(Path path);
+
+DIR* path_opendir(Path path);
 
 int path_create_directory(Path path);
 

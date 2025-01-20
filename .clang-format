@@ -79,7 +79,7 @@ CompactNamespaces: false
 ConstructorInitializerIndentWidth: 4
 ContinuationIndentWidth: 4
 Cpp11BracedListStyle: true
-DerivePointerAlignment: true
+DerivePointerAlignment: false
 DisableFormat:   false
 EmptyLineAfterAccessModifier: Never
 EmptyLineBeforeAccessModifier: LogicalBlock
@@ -120,7 +120,7 @@ IndentPPDirectives: AfterHash
 IndentRequiresClause: true
 IndentWidth:     4
 IndentWrappedFunctionNames: false
-InsertBraces:    true
+InsertBraces:    false
 InsertNewlineAtEOF: true
 InsertTrailingCommas: None
 IntegerLiteralSeparator:
