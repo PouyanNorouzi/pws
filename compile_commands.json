@@ -1,77 +1,72 @@
 [
-  {
-    "arguments": [
-      "/usr/bin/gcc",
-      "-Wall",
-      "-Wextra",
-      "-Iinclude",
-      "-c",
-      "-o",
-      "build/main.o",
-      "src/main.c"
-    ],
-    "directory": "/home/batmanpouknight/Projects/pouyan-web-services",
-    "file": "/home/batmanpouknight/Projects/pouyan-web-services/src/main.c",
-    "output": "/home/batmanpouknight/Projects/pouyan-web-services/build/main.o"
-  },
-  {
-    "arguments": [
-      "/usr/bin/gcc",
-      "-Wall",
-      "-Wextra",
-      "-Iinclude",
-      "-c",
-      "-o",
-      "build/pssh.o",
-      "src/pssh.c"
-    ],
-    "directory": "/home/batmanpouknight/Projects/pouyan-web-services",
-    "file": "/home/batmanpouknight/Projects/pouyan-web-services/src/pssh.c",
-    "output": "/home/batmanpouknight/Projects/pouyan-web-services/build/pssh.o"
-  },
-  {
-    "arguments": [
-      "/usr/bin/gcc",
-      "-Wall",
-      "-Wextra",
-      "-Iinclude",
-      "-c",
-      "-o",
-      "build/attr_list.o",
-      "src/attr_list.c"
-    ],
-    "directory": "/home/batmanpouknight/Projects/pouyan-web-services",
-    "file": "/home/batmanpouknight/Projects/pouyan-web-services/src/attr_list.c",
-    "output": "/home/batmanpouknight/Projects/pouyan-web-services/build/attr_list.o"
-  },
-  {
-    "arguments": [
-      "/usr/bin/gcc",
-      "-Wall",
-      "-Wextra",
-      "-Iinclude",
-      "-c",
-      "-o",
-      "build/dynamic_str.o",
-      "src/dynamic_str.c"
-    ],
-    "directory": "/home/batmanpouknight/Projects/pouyan-web-services",
-    "file": "/home/batmanpouknight/Projects/pouyan-web-services/src/dynamic_str.c",
-    "output": "/home/batmanpouknight/Projects/pouyan-web-services/build/dynamic_str.o"
-  },
-  {
-    "arguments": [
-      "/usr/bin/gcc",
-      "-Wall",
-      "-Wextra",
-      "-Iinclude",
-      "-c",
-      "-o",
-      "build/path.o",
-      "src/path.c"
-    ],
-    "directory": "/home/batmanpouknight/Projects/pouyan-web-services",
-    "file": "/home/batmanpouknight/Projects/pouyan-web-services/src/path.c",
-    "output": "/home/batmanpouknight/Projects/pouyan-web-services/build/path.o"
-  }
-]
+ {
+  "directory": "C:\\Projects\\Other stuff\\pws",
+  "arguments": [
+   "gcc",
+   "-Wall",
+   "-Wextra",
+   "-Iinclude",
+   "-c",
+   "src/main.c",
+   "-o",
+   "build/main.o"
+  ],
+  "file": "src/main.c"
+ },
+ {
+  "directory": "C:\\Projects\\Other stuff\\pws",
+  "arguments": [
+   "gcc",
+   "-Wall",
+   "-Wextra",
+   "-Iinclude",
+   "-c",
+   "src/pssh.c",
+   "-o",
+   "build/pssh.o"
+  ],
+  "file": "src/pssh.c"
+ },
+ {
+  "directory": "C:\\Projects\\Other stuff\\pws",
+  "arguments": [
+   "gcc",
+   "-Wall",
+   "-Wextra",
+   "-Iinclude",
+   "-c",
+   "src/attr_list.c",
+   "-o",
+   "build/attr_list.o"
+  ],
+  "file": "src/attr_list.c"
+ },
+ {
+  "directory": "C:\\Projects\\Other stuff\\pws",
+  "arguments": [
+   "gcc",
+   "-Wall",
+   "-Wextra",
+   "-Iinclude",
+   "-c",
+   "src/dynamic_str.c",
+   "-o",
+   "build/dynamic_str.o"
+  ],
+  "file": "src/dynamic_str.c"
+ },
+ {
+  "directory": "C:\\Projects\\Other stuff\\pws",
+  "arguments": [
+   "gcc",
+   "-Wall",
+   "-Wextra",
+   "-Iinclude",
+   "-c",
+   "src/path.c",
+   "-o",
+   "build/path.o"
+  ],
+  "file": "src/path.c"
+ }
+]

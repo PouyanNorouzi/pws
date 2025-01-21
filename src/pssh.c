@@ -12,15 +12,18 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <time.h>
 
 #include "attr_list.h"
 #include "dynamic_str.h"
 #include "path.h"
+
 #ifndef _WIN32
 #  include <bsd/readpassphrase.h>
 #  include <unistd.h>
 #else
+#  include <_mingw_stat64.h>
 #  include <conio.h>
 #endif
 
@@ -483,6 +486,7 @@ int upload_directory(sftp_session session, Path from, Path to) {
     Path  curr_path;
 
     struct dirent* attr;
+    struct stat    path_stat;
 
     if(session == NULL || from == NULL || to == NULL) {
         fprintf(stderr, "cannot pass null values to upload_file function\n");
@@ -536,12 +540,13 @@ int upload_directory(sftp_session session, Path from, Path to) {
     while((attr = readdir(local_dir)) != NULL) {
         if(attr->d_name[0] == '.') continue;
 
+        stat(attr->d_name, &path_stat);
+
         path_go_into(curr_path, attr->d_name);
-        puts(curr_path->path->str);
         // TODO: BETTER ERROR HANDLING
-        if(attr->d_type == DT_DIR) {
+        if(S_ISDIR(path_stat.st_mode)) {
             upload_directory(session, curr_path, to_directory);
-        } else if(attr->d_type == DT_REG) {
+        } else if(S_ISREG(path_stat.st_mode)) {
             upload_file(session, curr_path, to_directory);
         } else {
             fprintf(stderr,
@@ -912,7 +917,7 @@ char* get_readable_size(size_t size) {
     char  buffer[BUFFER_SIZE];
 
     if(size / BYTES_IN_KB == 0) {
-        sprintf(buffer, "%luB", size);
+        sprintf(buffer, "%luB", (unsigned long)size);
     } else if(size / BYTES_IN_MB == 0) {
         sprintf(buffer, "%.3fKB", (double)size / BYTES_IN_KB);
     } else if(size / BYTES_IN_GB == 0) {
