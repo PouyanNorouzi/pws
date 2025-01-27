@@ -540,9 +540,21 @@ int upload_directory(sftp_session session, Path from, Path to) {
     while((attr = readdir(local_dir)) != NULL) {
         if(attr->d_name[0] == '.') continue;
 
-        stat(attr->d_name, &path_stat);
-
         path_go_into(curr_path, attr->d_name);
+
+        rc = stat(curr_path->path->str, &path_stat);
+        if(rc == -1) {
+            fprintf(stderr,
+                    "Could not stat for %s error: %d\n",
+                    attr->d_name,
+                    errno);
+            path_free(curr_path);
+            closedir(local_dir);
+            path_free(to_directory);
+            free(dir_name);
+            return SSH_ERROR;
+        }
+
         // TODO: BETTER ERROR HANDLING
         if(S_ISDIR(path_stat.st_mode)) {
             upload_directory(session, curr_path, to_directory);
