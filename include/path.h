@@ -2,7 +2,9 @@
 #define PATH_H
 
 #include <dirent.h>
+#include <libssh/sftp.h>
 #include <stdbool.h>
+#include <stdio.h>
 #include <sys/stat.h>
 
 #include "dynamic_str.h"
@@ -18,6 +20,7 @@
 #  define HOME_DIRECTORY (getenv("USERPROFILE"))
 #  define CURR_PLATFORM  PLATFORM_WINDOWS
 #  define PATH_SEPERATOR "\\"
+#  define mkdir(x, y)    _mkdir(x)
 #endif
 
 enum platform { PLATFORM_WINDOWS, PLATFORM_LINUX };
@@ -47,9 +50,17 @@ bool path_is_directory(Path path);
 
 bool path_is_file(Path path);
 
+bool path_exists(Path path);
+
 DIR* path_opendir(Path path);
 
+FILE* path_fopen(Path path, const char* modes);
+
+int path_rm_directory(Path path);
+
 int path_create_directory(Path path);
+
+sftp_file path_sftp_open(Path path);
 
 int path_free(Path path);
 

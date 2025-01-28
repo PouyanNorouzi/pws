@@ -402,14 +402,15 @@ int download_file(sftp_session    session,
                   Path            file,
                   Path            location,
                   sftp_attributes attr) {
-    sftp_file          file_sftp;
-    char               buffer[CHUNK_SIZE];
-    Path               download_file;
-    char*              file_name;
-    char*              readable_size;
-    char*              readable_written;
-    FILE*              fp;
-    ssize_t            nbytes;
+    sftp_file file_sftp;
+    char      chunk_buffer[CHUNK_SIZE];
+    Path      download_file;
+    char*     file_name;
+    char*     readable_size;
+    char*     readable_written;
+    FILE*     fp;
+    ssize_t   nbytes;
+
     unsigned long long total_written = 0;
 
     file_sftp = sftp_open(session, file->path->str, O_RDONLY, 0);
@@ -422,23 +423,23 @@ int download_file(sftp_session    session,
     download_file = path_duplicate(location);
     path_go_into(download_file, file_name);
 
-    // TODO: CHECK IF THE FILE ALREADY EXISTS AND PROMPT FOR OVERRIDE
-    fp = fopen(download_file->path->str, "wb");
+    fp = path_fopen(download_file, "wb");
     if(fp == NULL) {
-        free(file_name);
         fprintf(stderr,
                 "Failed to open file at %s\n",
                 download_file->path->str);
+        free(file_name);
+        path_free(download_file);
         return SSH_ERROR;
     }
-    // no longer needed
+    // no longer needed so it is freed
     path_free(download_file);
 
     readable_size = get_readable_size(attr->size);
 
     time_t last_report  = time(NULL);
     time_t current_time = last_report;
-    while((nbytes = sftp_read(file_sftp, buffer, CHUNK_SIZE)) != 0) {
+    while((nbytes = sftp_read(file_sftp, chunk_buffer, CHUNK_SIZE)) != 0) {
         if(nbytes < 0) {
             fprintf(stderr, "Error while reading from the file\n");
             fclose(fp);
@@ -448,7 +449,7 @@ int download_file(sftp_session    session,
             return SSH_ERROR;
         }
 
-        if(fwrite(buffer, sizeof(char), nbytes, fp) != (size_t)nbytes) {
+        if(fwrite(chunk_buffer, sizeof(char), nbytes, fp) != (size_t)nbytes) {
             fprintf(stderr, "Error while writing to the file\n");
             fclose(fp);
             free(readable_size);
@@ -461,7 +462,7 @@ int download_file(sftp_session    session,
         current_time = time(NULL);
         if(current_time > last_report) {
             readable_written = get_readable_size(total_written);
-            printf("\r[%s] wrote %s of %s",
+            printf("\r[%s] wrote %s of %s   ",
                    file_name,
                    readable_written,
                    readable_size);
@@ -470,6 +471,7 @@ int download_file(sftp_session    session,
             free(readable_written);
         }
     }
+    printf("\n");
 
     fclose(fp);
     free(readable_size);
@@ -555,11 +557,22 @@ int upload_directory(sftp_session session, Path from, Path to) {
             return SSH_ERROR;
         }
 
-        // TODO: BETTER ERROR HANDLING
         if(S_ISDIR(path_stat.st_mode)) {
-            upload_directory(session, curr_path, to_directory);
+            rc = upload_directory(session, curr_path, to_directory);
+            if(rc != SSH_OK) {
+                closedir(local_dir);
+                path_free(to_directory);
+                free(dir_name);
+                return SSH_ERROR;
+            }
         } else if(S_ISREG(path_stat.st_mode)) {
-            upload_file(session, curr_path, to_directory);
+            rc = upload_file(session, curr_path, to_directory);
+            if(rc != SSH_OK) {
+                closedir(local_dir);
+                path_free(to_directory);
+                free(dir_name);
+                return SSH_ERROR;
+            }
         } else {
             fprintf(stderr,
                     "cannot print the path %s skipping\n",
@@ -846,6 +859,7 @@ int upload_mode(ssh_session session) {
     char buffer[BUFFER_SIZE];
     Path uploaded;
     Path destination;
+    int  rc;
 
     if(session == NULL) {
         fprintf(stderr, "Error: SSH session is NULL.\n");
@@ -856,19 +870,46 @@ int upload_mode(ssh_session session) {
         fprintf(stderr, "Error creating SFTP session.\n");
     }
 
-    // TODO: BETTER ERROR HANDLING
-    puts("enter the path of the file or directory you want to upload");
-    pfgets(buffer, BUFFER_SIZE);
+    puts("Enter the path of the file or directory you want to upload:");
+    if(pfgets(buffer, BUFFER_SIZE) == NULL) {
+        fprintf(stderr, "Error reading input.\n");
+        return SSH_ERROR;
+    }
     uploaded = path_init(buffer, CURR_PLATFORM);
+    if(uploaded == NULL) {
+        fprintf(stderr, "Error initializing path for upload.\n");
+        return SSH_ERROR;
+    }
 
-    puts("enter the path of the directory you want this to be uploaded to");
-    pfgets(buffer, BUFFER_SIZE);
+    puts("Enter the path of the directory you want this to be uploaded to:");
+    if(pfgets(buffer, BUFFER_SIZE) == NULL) {
+        fprintf(stderr, "Error reading input.\n");
+        path_free(uploaded);
+        return SSH_ERROR;
+    }
     destination = path_init(buffer, PLATFORM_LINUX);
+    if(destination == NULL) {
+        fprintf(stderr, "Error initializing destination path.\n");
+        path_free(uploaded);
+        return SSH_ERROR;
+    }
 
     if(path_is_directory(uploaded)) {
-        upload_directory(sftp, uploaded, destination);
+        rc = upload_directory(sftp, uploaded, destination);
+        if(rc != SSH_OK) {
+            fprintf(stderr, "Error uploading directory.\n");
+            path_free(uploaded);
+            path_free(destination);
+            return SSH_ERROR;
+        }
     } else if(path_is_file(uploaded)) {
-        upload_file(sftp, uploaded, destination);
+        rc = upload_file(sftp, uploaded, destination);
+        if(rc != SSH_OK) {
+            fprintf(stderr, "Error uploading file.\n");
+            path_free(uploaded);
+            path_free(destination);
+            return SSH_ERROR;
+        }
     } else {
         fprintf(stderr, "Error finding the file to be uploaded\n");
         path_free(uploaded);

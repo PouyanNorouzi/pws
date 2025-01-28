@@ -2,13 +2,17 @@
 
 #include <dirent.h>
 #include <errno.h>
+#include <libssh/libssh.h>
+#include <libssh/sftp.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <time.h>
 
 #include "dynamic_str.h"
+#include "pssh.h"
 #ifdef _WIN32
 #  include <direct.h>
 #endif
@@ -177,15 +181,76 @@ bool path_is_file(Path path) {
     return false;
 }
 
+bool path_exists(Path path) {
+    struct stat path_stat;
+
+    errno  = 0;
+    int rc = stat(path->path->str, &path_stat);
+    if(rc == -1) {
+        if(errno == 2) {
+            return false;
+        } else {
+            fprintf(stderr,
+                    "There was an error running stat on %s: %d\n",
+                    path->path->str,
+                    errno);
+            return false;
+        }
+    }
+
+    return true;
+}
+
 DIR* path_opendir(Path path) { return opendir(path->path->str); }
 
-int path_create_directory(Path path) {
-#ifdef _WIN32
-    return _mkdir(path->path->str);
-#else
-    return mkdir(path->path->str, 0775);
-#endif
+FILE* path_fopen(Path path, const char* modes) {
+    char buffer[BUFFER_SIZE];
+
+    if(modes[0] == 'w' && path_exists(path)) {
+        printf("File %s already exists override?[y/N]", path->path->str);
+        pfgets(buffer, BUFFER_SIZE);
+
+        if(buffer[0] != 'Y' && buffer[0] != 'y') return NULL;
+    }
+
+    return fopen(path->path->str, modes);
 }
+
+int path_create_directory(Path path) {
+    int  rc;
+    char buffer[BUFFER_SIZE];
+
+    errno = 0;
+
+    rc = mkdir(path->path->str, 0775);
+    if(rc == -1 && errno == 17) {
+        printf("Directory %s already exists override?[y/N]: ", path->path->str);
+        pfgets(buffer, BUFFER_SIZE);
+        if(buffer[0] == 'y' || buffer[0] == 'Y') {
+            rc = path_rm_directory(path);
+            if(rc == -1) return rc;
+
+            rc = mkdir(path->path->str, 0775);
+        }
+    } else if(rc == -1) {
+        fprintf(stderr, "%d\n", errno);
+    }
+
+    return rc;
+}
+
+int path_rm_directory(Path path) {
+    int rc;
+
+    rc = remove(path->path->str);
+    if(rc == -1) {
+        fprintf(stderr, "Error deleting %s: %d\n", path->path->str, errno);
+    }
+
+    return 1;
+}
+
+sftp_file path_sftp_open(Path path) { }
 
 int path_free(Path path) {
     dynamic_str_free(path->path);
