@@ -20,7 +20,6 @@
 #  define HOME_DIRECTORY (getenv("USERPROFILE"))
 #  define CURR_PLATFORM  PLATFORM_WINDOWS
 #  define PATH_SEPERATOR "\\"
-#  define mkdir(x, y)    _mkdir(x)
 #endif
 
 enum platform { PLATFORM_WINDOWS, PLATFORM_LINUX };
